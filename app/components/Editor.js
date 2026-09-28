@@ -1953,6 +1953,7 @@ function InlineAI({ editor, onAiRequest, onArchiveGeneration, contextItems, cont
         >
             {/* 模式选择（同时作为拖动手柄） */}
             <div className="inline-ai-modes" onMouseDown={onDragStart} style={{ cursor: 'grab' }}>
+                <ModelPicker target="editor" dropDirection="down" />
                 {availableModes.map(m => (
                     <button
                         key={m.key}
@@ -1984,6 +1985,7 @@ function InlineAI({ editor, onAiRequest, onArchiveGeneration, contextItems, cont
                             <span className="chat-header-title">{text('AI 问答助手', 'AI Q&A Assistant', 'ИИ-помощник Q&A')}</span>
                             <span className="chat-header-subtitle">{text('基于你的作品上下文回答，不修改原文', 'Answers from your story context without changing the text', 'Отвечает по контексту произведения, не меняя текст')}</span>
                         </div>
+                        <ModelPicker target="editor" dropDirection="down" />
                     </div>
 
                     {/* 消息区域 */}

@@ -8,6 +8,7 @@ import { resolveAiEndpoint } from '../lib/ai-provider-compat';
 import { readAiEvents } from '../lib/ai-stream.js';
 import { aiFetch } from '../lib/ai-direct';
 import { localizeApiError } from '../lib/api-error-i18n';
+import ModelPicker from './ModelPicker';
 
 // 字段标签（用于展示摘要）
 const FIELD_LABELS = {
@@ -266,7 +267,10 @@ Rules:
                 display: 'flex', flexDirection: 'column', gap: 16,
                 maxHeight: '80vh', overflow: 'hidden',
             }}>
-                <h3 style={{ margin: 0, fontSize: 16 }}><ClipboardList size={16} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />{text('设定集导入 — 冲突解决', 'Settings Import - Conflict Resolution', 'Импорт настроек - разрешение конфликтов')}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <h3 style={{ margin: 0, fontSize: 16 }}><ClipboardList size={16} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />{text('设定集导入 — 冲突解决', 'Settings Import - Conflict Resolution', 'Импорт настроек - разрешение конфликтов')}</h3>
+                    <ModelPicker target="editor" dropDirection="down" />
+                </div>
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
                     {text(`发现 ${conflicts.length} 个同名条目冲突，`, `Found ${conflicts.length} same-name conflicts. `, `Найдено конфликтов с одинаковыми именами: ${conflicts.length}. `)}
                     {noConflicts.length > 0 ? text(`另有 ${noConflicts.length} 个新条目将直接导入。`, `${noConflicts.length} new items will be imported directly. `, `Новых элементов для прямого импорта: ${noConflicts.length}. `) : ''}

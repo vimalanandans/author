@@ -7,6 +7,7 @@ import { getEmbedding } from './embeddings';
 import { migrateApiConfigToCompatible } from './ai-provider-compat';
 import { containsNonEmptyApiSecrets, mergeApiSecrets, splitApiSecrets } from './api-secret-storage';
 import { localizedError } from './runtime-i18n';
+import { normalizeModelCatalog } from './model-catalog';
 
 const SETTINGS_KEY = 'author-project-settings';
 const API_CONFIG_STORAGE_KEY = 'author-api-config';
@@ -667,23 +668,31 @@ export function getProjectSettings() {
                     baseUrl: settings.apiConfig.baseUrl || '',
                     model: settings.apiConfig.model || '',
                     apiFormat: settings.apiConfig.apiFormat || '',
-                    models: [],
+                    models: settings.apiConfig.model ? [settings.apiConfig.model] : [],
+                    disabledModels: [],
                 };
             }
         }
         // 自动迁移：为 providerConfigs 中的每个供应商补全 models 数组 + providerType
         if (settings.apiConfig?.providerConfigs) {
             for (const [key, cfg] of Object.entries(settings.apiConfig.providerConfigs)) {
-                if (!Array.isArray(cfg.models)) {
-                    // models 只代表用户明确加入快切列表的模型；自检/迁移不自动勾选。
-                    cfg.models = [];
-                }
-                // 注意：不再自动将 cfg.model 注入 cfg.models，否则用户无法从快切列表中删除模型
+                settings.apiConfig.providerConfigs[key] = normalizeModelCatalog(
+                    cfg,
+                    [settings.apiConfig.provider === key ? settings.apiConfig.model : '', settings.chatApiConfig?.provider === key ? settings.chatApiConfig.model : ''],
+                );
                 // 自动迁移：补全 providerType 字段（多实例支持）
                 if (!cfg.providerType) {
                     // 旧数据 key 本身就是 providerType，实例 key 含下划线后缀
                     cfg.providerType = key.replace(/_[a-z0-9]+$/, '');
                 }
+            }
+        }
+        if (settings.apiConfig?.embedProviderConfigs) {
+            for (const [key, cfg] of Object.entries(settings.apiConfig.embedProviderConfigs)) {
+                settings.apiConfig.embedProviderConfigs[key] = normalizeModelCatalog(
+                    cfg,
+                    [settings.apiConfig.embedProvider === key ? settings.apiConfig.embedModel : ''],
+                );
             }
         }
         // 在返回前，将 providerType 写入 apiConfig 顶层，方便下游直接使用
@@ -801,6 +810,7 @@ export function addProviderInstance(providerType, instanceName, initialConfig = 
         baseUrl: initialConfig.baseUrl || '',
         model: initialConfig.model || '',
         models: initialConfig.models || [],
+        disabledModels: initialConfig.disabledModels || [],
         apiFormat: initialConfig.apiFormat || '',
         providerType,
         instanceName: instanceName || `${providerType} (${suffix.slice(0, 4)})`,

@@ -10,6 +10,7 @@ import { useI18n } from '../lib/useI18n';
 import { apiPath } from '../lib/api-base';
 import { getEmbeddingProviderConfig, switchEmbeddingModel } from '../lib/embedding-provider-config';
 import { getBuiltInEndpointName } from '../lib/built-in-labels';
+import { enabledModelIds, isModelEnabled, mergeModelCatalog } from '../lib/model-catalog';
 
 // Provider icon filename mapping
 const PROVIDER_ICON_MAP = {
@@ -187,8 +188,10 @@ export default function ModelPicker({ target = 'editor', onOpenSettings, classNa
                 const cfg = pc[instanceKey];
                 const isConfigured = target === 'embed'
                     ? getEmbeddingProviderConfig(config.embeddingApiConfig, instanceKey, p).isConfigured
-                    : !!(cfg?.apiKey || (config.active?.provider === instanceKey && config.active?.apiKey) || (config.mainProvider === instanceKey && config.mainApiKey));
-                const userModels = cfg?.models || [];
+                    : p.key === 'ollama'
+                        ? !!(cfg?.baseUrl || (config.active?.provider === instanceKey && config.active?.baseUrl) || (config.mainProvider === instanceKey && config.active?.baseUrl))
+                        : !!(cfg?.apiKey || (config.active?.provider === instanceKey && config.active?.apiKey) || (config.mainProvider === instanceKey && config.mainApiKey));
+                const userModels = enabledModelIds(cfg);
 
                 // 实例显示名：如果有多个实例，使用实例自定义名称
                 const instanceName = getBuiltInEndpointName(cfg?.instanceName, text) || '';
@@ -226,7 +229,7 @@ export default function ModelPicker({ target = 'editor', onOpenSettings, classNa
             const isConfigured = target === 'embed'
                 ? getEmbeddingProviderConfig(config.embeddingApiConfig, key, baseProv).isConfigured
                 : !!cfg.apiKey;
-            const userModels = cfg.models || [];
+            const userModels = enabledModelIds(cfg);
             const displayLabel = getBuiltInEndpointName(cfg.instanceName, text) || getProviderLabel(baseProv || provType, text);
             const q = search.toLowerCase();
             const providerMatch = !q || displayLabel.toLowerCase().includes(q) || key.includes(q);
@@ -273,6 +276,7 @@ export default function ModelPicker({ target = 'editor', onOpenSettings, classNa
 
         const pc = settings.apiConfig.providerConfigs || {};
         const providerCfg = pc[providerKey] || {};
+        if (!isModelEnabled(providerCfg, modelId)) return;
         // 对于实例 key（如 deepseek_abc），通过 providerType 查找预设定义
         const providerType = providerCfg.providerType || providerKey;
         const providerDef = PROVIDERS.find(p => p.key === providerKey) || PROVIDERS.find(p => p.key === providerType);
@@ -287,8 +291,7 @@ export default function ModelPicker({ target = 'editor', onOpenSettings, classNa
         };
 
         // 更新活跃模型（不自动加入 models 列表）
-        if (!pc[providerKey]) pc[providerKey] = { ...providerCfg };
-        pc[providerKey].model = modelId;
+        pc[providerKey] = { ...mergeModelCatalog(providerCfg, [modelId], [modelId]), model: modelId };
 
         if (target === 'chat') {
             // 继承主配置中的 tools 和 searchConfig，确保搜索设置不丢失
@@ -311,16 +314,8 @@ export default function ModelPicker({ target = 'editor', onOpenSettings, classNa
                 if (!Array.isArray(pc[oldKey].models)) pc[oldKey].models = [];
             }
             Object.assign(settings.apiConfig, newCfg);
-            // 同步更新 chatApiConfig，确保 AI 助手对话也使用新切换的模型
-            if (settings.chatApiConfig && settings.chatApiConfig.provider) {
-                const chatTools = settings.chatApiConfig.tools || settings.apiConfig?.tools;
-                const chatSearchConfig = settings.chatApiConfig.searchConfig || settings.apiConfig?.searchConfig;
-                settings.chatApiConfig = {
-                    ...newCfg,
-                    ...(chatTools ? { tools: chatTools } : {}),
-                    ...(chatSearchConfig ? { searchConfig: chatSearchConfig } : {}),
-                };
-            }
+            // A chat-specific selection remains independent. A null chat config
+            // still follows the main/editor configuration automatically.
         }
         settings.apiConfig.providerConfigs = pc;
         saveProjectSettings(settings);

@@ -45,7 +45,7 @@ export function switchEmbeddingModel(apiConfig = {}, providerKey, modelId, defau
         embedProviderConfigs: {
             ...configs,
             [providerKey]: {
-                ...(configs[providerKey] || {}),
+                ...mergeModelCatalog(configs[providerKey] || {}, [modelId], [modelId]),
                 apiKey: selected.apiKey,
                 baseUrl: selected.baseUrl,
                 model: modelId,
@@ -53,3 +53,4 @@ export function switchEmbeddingModel(apiConfig = {}, providerKey, modelId, defau
         },
     };
 }
+import { mergeModelCatalog } from './model-catalog.js';

@@ -26,6 +26,7 @@ import { localizeApiError } from '../lib/api-error-i18n';
 import { tt } from '../lib/runtime-i18n';
 import { buildChapterSynopsisPrompts, buildMergedSynopsisPrompts, buildMultiChapterSynopsisPrompts } from '../lib/synopsis-prompts';
 import { prepareChapterForAi, prepareChaptersForAi } from '../lib/ai-reference-content';
+import ModelPicker from './ModelPicker';
 
 /** 更多操作下拉菜单（Portal 渲染到 body，彻底避免 overflow 裁剪） */
 function MoreMenuPortal({ anchorRef, t, text, setShowSettings, setShowMoreMenu, onOpenHelp, setShowGitPopup, onSaveAs }) {
@@ -469,6 +470,7 @@ function ChapterSynopsisModal({
                         <span>{synopsisDraft.trim() ? '概要会作为前文摘要参与续写上下文' : '生成或填写后可用于后续章节承接'}</span>
                     </div>
                     <div className="memory-footer-actions">
+                        <ModelPicker target="editor" dropDirection="up" />
                         <button className="btn btn-ghost btn-sm" onClick={onClear} disabled={synopsisGenerating || synopsisSaving}>{text('清空', 'Clear', 'Очистить')}</button>
                         <button className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={synopsisGenerating || synopsisSaving || synopsisLocked}>
                         {synopsisGenerating ? <RefreshCw size={14} className="spin" /> : <Sparkles size={14} />}
@@ -1227,7 +1229,10 @@ function ChapterSynopsisOverviewModal({
                                 <h3>{activeView === 'multi' ? text('选择章节生成多章概要', 'Select Chapters for Multi-Chapter Synopsis', 'Выберите главы для многочастного синопсиса') : activeView === 'groups' ? text('概要分组', 'Synopsis Groups', 'Группы синопсисов') : activeView === 'single' ? text('单章概要', 'Single Synopsis', 'Синопсис главы') : text('已保存概要', 'Saved Synopses', 'Сохраненные синопсисы')}</h3>
                                 <p>{activeView === 'multi' ? text('可任选章节组成一组，保存为多章概要', 'Choose any chapters and save them as a multi-chapter synopsis', 'Выберите главы и сохраните их как многочастный синопсис') : activeView === 'groups' ? text('查看已保存的多章概要组，可在右侧编辑或合并', 'View saved multi-chapter groups; edit or merge them on the right', 'Просматривайте сохраненные группы; редактируйте или объединяйте их справа') : text('按分卷浏览章节概要，缺失章节也会显示出来', 'Browse synopses by volume, including missing chapters', 'Просматривайте синопсисы по томам, включая пропуски')}</p>
                             </div>
-                            <span>{text(`${activeView === 'groups' ? memoryGroups.length : filteredEntries.length} 项`, `${activeView === 'groups' ? memoryGroups.length : filteredEntries.length} items`, `${activeView === 'groups' ? memoryGroups.length : filteredEntries.length} эл.`)}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>{text(`${activeView === 'groups' ? memoryGroups.length : filteredEntries.length} 项`, `${activeView === 'groups' ? memoryGroups.length : filteredEntries.length} items`, `${activeView === 'groups' ? memoryGroups.length : filteredEntries.length} эл.`)}</span>
+                                <ModelPicker target="editor" dropDirection="down" />
+                            </div>
                         </div>
 
                         <div className="synopsis-saved-list">

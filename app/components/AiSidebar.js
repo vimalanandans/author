@@ -21,6 +21,7 @@ import { resolveAiEndpoint } from '../lib/ai-provider-compat';
 import { readAiEvents } from '../lib/ai-stream.js';
 import { aiFetch } from '../lib/ai-direct';
 import { localizeApiError } from '../lib/api-error-i18n';
+import { createStreamUpdateBatcher } from '../lib/stream-update-batcher';
 import {
     applySettingsUndoPatch,
     canUndoCreatedSettingsNode,
@@ -1035,15 +1036,15 @@ export default function AiSidebar({ onInsertText }) {
     useEffect(() => {
         const container = chatContainerRef.current;
         if (!container) {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            chatEndRef.current?.scrollIntoView({ behavior: chatStreaming ? 'instant' : 'smooth' });
             return;
         }
         const threshold = 80;
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
         if (isNearBottom) {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            chatEndRef.current?.scrollIntoView({ behavior: chatStreaming ? 'instant' : 'smooth' });
         }
-    }, [chatHistory]);
+    }, [chatHistory, chatStreaming]);
 
     // 切到聊天 Tab / 重新打开侧栏时，滚动到底部并聚焦输入框
     useEffect(() => {
@@ -1214,6 +1215,14 @@ export default function AiSidebar({ onInsertText }) {
         const aiMsgId = `msg-${Date.now()}-a`;
         const controller = new AbortController();
         abortRef.current = controller;
+        const streamUpdates = createStreamUpdateBatcher((snapText, snapThinking, snapToolCalls) => {
+            setSessionStore(prev => ({
+                ...prev, sessions: prev.sessions.map(s => {
+                    if (s.id !== targetSessionId) return s;
+                    return { ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: snapText, thinking: snapThinking, toolCalls: snapToolCalls } : m) };
+                }),
+            }));
+        });
 
         try {
             const apiConfig = getChatApiConfig();
@@ -1249,14 +1258,10 @@ export default function AiSidebar({ onInsertText }) {
 
             const returnedBody = await streamResponse(apiEndpoint, systemPrompt, userPrompt, apiConfig,
                 (snapText, snapThinking, snapToolCalls) => {
-                    setSessionStore(prev => ({
-                        ...prev, sessions: prev.sessions.map(s => {
-                            if (s.id !== targetSessionId) return s;
-                            return { ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: snapText, thinking: snapThinking, toolCalls: snapToolCalls } : m) };
-                        }),
-                    }));
+                    streamUpdates.push(snapText, snapThinking, snapToolCalls);
                 },
                 (finalText, finalThinking, finalToolCalls) => {
+                    streamUpdates.flush();
                     setSessionStore(prev => {
                         const finalStore = {
                             ...prev, sessions: prev.sessions.map(s => {
@@ -1323,6 +1328,9 @@ export default function AiSidebar({ onInsertText }) {
                 });
             }
         } finally {
+            // Ensure a provider that finished in one burst is rendered in full
+            // before the generation state changes.
+            streamUpdates.flush();
             abortRef.current = null;
             setChatStreaming(false);
         }
@@ -1348,6 +1356,14 @@ export default function AiSidebar({ onInsertText }) {
         setChatStreaming(true);
         const controller = new AbortController();
         abortRef.current = controller;
+        const streamUpdates = createStreamUpdateBatcher((snapText, snapThinking, snapToolCalls) => {
+            setSessionStore(prev => ({
+                ...prev, sessions: prev.sessions.map(s => {
+                    if (s.id !== targetSessionId) return s;
+                    return { ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: snapText, thinking: snapThinking, toolCalls: snapToolCalls } : m) };
+                }),
+            }));
+        });
 
         try {
             const apiConfig = getChatApiConfig();
@@ -1379,14 +1395,10 @@ export default function AiSidebar({ onInsertText }) {
 
             await streamResponse(apiEndpoint, systemPrompt, userPrompt, apiConfig,
                 (snapText, snapThinking, snapToolCalls) => {
-                    setSessionStore(prev => ({
-                        ...prev, sessions: prev.sessions.map(s => {
-                            if (s.id !== targetSessionId) return s;
-                            return { ...s, messages: s.messages.map(m => m.id === aiMsgId ? { ...m, content: snapText, thinking: snapThinking, toolCalls: snapToolCalls } : m) };
-                        }),
-                    }));
+                    streamUpdates.push(snapText, snapThinking, snapToolCalls);
                 },
                 (finalText, finalThinking, finalToolCalls) => {
+                    streamUpdates.flush();
                     setSessionStore(prev => {
                         const variantData = { content: finalText || tx('（AI 未返回内容）', '(AI returned no content)', '(ИИ не вернул содержимое)'), thinking: finalThinking, toolCalls: finalToolCalls, timestamp: Date.now() };
                         const newStore = {
@@ -1453,6 +1465,7 @@ export default function AiSidebar({ onInsertText }) {
                 });
             }
         } finally {
+            streamUpdates.flush();
             abortRef.current = null;
             setChatStreaming(false);
         }
@@ -2519,6 +2532,7 @@ export default function AiSidebar({ onInsertText }) {
                         {/* 模型切换器 + 输入框 */}
                         <div className={`chat-input-area chat-composer${settingsGenerationMode ? ' settings-generation-active' : ''}`}>
                             <div className="chat-composer-toolbar">
+                                <ModelPicker target="chat" dropDirection="up" />
                                 <button
                                     type="button"
                                     className={`settings-generation-trigger${settingsGenerationMode ? ' active' : ''}`}

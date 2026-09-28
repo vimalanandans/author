@@ -59,6 +59,7 @@ import {
 import SettingsConflictModal from './SettingsConflictModal';
 import { DEFAULT_WRITING_FONT_FAMILY, WRITING_FONT_FAMILIES } from '../lib/typography';
 import { GEMINI_NATIVE_BASE_URL, OLLAMA_DEFAULT_BASE_URL } from '../lib/ai-provider-defaults';
+import { isModelEnabled, mergeModelCatalog, setModelEnabled } from '../lib/model-catalog';
 
 // 分类图标映射（Lucide）
 const CAT_ICONS = {
@@ -1443,7 +1444,7 @@ export default function SettingsPanel() {
 
 const DEEPSEEK_DEPRECATED_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner']);
 
-function mergeFetchedAndSavedModels(fetchedModels, savedModels) {
+function mergeFetchedAndSavedModels(fetchedModels, savedModels, disabledModels = []) {
     const seen = new Set();
     const merged = [];
 
@@ -1451,14 +1452,14 @@ function mergeFetchedAndSavedModels(fetchedModels, savedModels) {
         const id = (typeof model === 'string' ? model : model?.id || model?.name || model?.displayName || '').trim();
         if (!id || seen.has(id)) return;
         seen.add(id);
-        merged.push(typeof model === 'string' ? { id } : { ...model, id });
+        merged.push({ ...(typeof model === 'string' ? {} : model), id, isDisabled: disabledModels.includes(id) });
     });
 
     (savedModels || []).forEach(modelId => {
         const id = String(modelId || '').trim();
         if (!id || seen.has(id)) return;
         seen.add(id);
-        merged.push({ id, isUnavailable: true });
+        merged.push({ id, isUnavailable: true, isDisabled: disabledModels.includes(id) });
     });
 
     return merged;
@@ -1987,10 +1988,12 @@ function ApiConfigForm({ data, onChange }) {
     const update = (field, value) => {
         const synced = ['apiKey', 'baseUrl', 'model', 'apiFormat'];
         const next = { ...data, [field]: value };
-        if (synced.includes(field) && next.provider && next.providerConfigs?.[next.provider]) {
+        if (synced.includes(field) && next.provider) {
             next.providerConfigs = {
-                ...next.providerConfigs,
-                [next.provider]: { ...next.providerConfigs[next.provider], [field]: value },
+                ...(next.providerConfigs || {}),
+                [next.provider]: field === 'model'
+                    ? { ...mergeModelCatalog(next.providerConfigs?.[next.provider] || {}, [value], [value]), [field]: value }
+                    : { ...(next.providerConfigs?.[next.provider] || {}), [field]: value },
             };
         }
         const embedFieldMap = { embedApiKey: 'apiKey', embedBaseUrl: 'baseUrl', embedModel: 'model' };
@@ -1998,10 +2001,9 @@ function ApiConfigForm({ data, onChange }) {
         if (embedConfigField && next.embedProvider) {
             next.embedProviderConfigs = {
                 ...(next.embedProviderConfigs || {}),
-                [next.embedProvider]: {
-                    ...(next.embedProviderConfigs?.[next.embedProvider] || {}),
-                    [embedConfigField]: value,
-                },
+                    [next.embedProvider]: embedConfigField === 'model'
+                        ? { ...mergeModelCatalog(next.embedProviderConfigs?.[next.embedProvider] || {}, [value], [value]), [embedConfigField]: value }
+                        : { ...(next.embedProviderConfigs?.[next.embedProvider] || {}), [embedConfigField]: value },
             };
         }
         onChange(next);
@@ -2144,7 +2146,13 @@ function ApiConfigForm({ data, onChange }) {
             const res = await fetch(apiPath('/api/ai/models'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: data.apiKey, baseUrl: data.baseUrl, provider: pType, proxyUrl: data.proxyUrl, allowKeyless: KEYLESS_PROVIDER_KEYS.includes(pType) }) });
             const result = await res.json();
             if (result.error) { setFetchedModels(null); setTestStatus({ ...result, success: false }); }
-            else { setFetchedModels(result.models || []); setShowModelModal(true); setModelSearch(''); }
+            else {
+                const models = result.models || [];
+                const configs = { ...(data.providerConfigs || {}) };
+                configs[data.provider] = mergeModelCatalog(configs[data.provider] || {}, models, [data.model]);
+                onChange({ ...data, providerConfigs: configs });
+                setFetchedModels(models); setShowModelModal(true); setModelSearch('');
+            }
         } catch { setFetchedModels(null); setTestStatus({ success: false, translationKey: 'apiConfig.fetchModelsFailed' }); }
     };
 
@@ -2162,6 +2170,9 @@ function ApiConfigForm({ data, onChange }) {
             if (result.error) { setFetchedEmbedModels(null); setEmbedFetchMsg({ type: 'error', payload: result }); }
             else {
                 const embedModels = result.models || [];
+                const configs = { ...(data.embedProviderConfigs || {}) };
+                configs[data.embedProvider] = mergeModelCatalog(configs[data.embedProvider] || {}, embedModels, [data.embedModel]);
+                onChange({ ...data, embedProviderConfigs: configs });
                 setFetchedEmbedModels(embedModels);
                 if (embedModels.length > 0) {
                     setEmbedFetchMsg({ type: 'success', count: embedModels.length });
@@ -2543,25 +2554,18 @@ function ApiConfigForm({ data, onChange }) {
                                 </button>
                             )}
                         </div>
-                        {/* 快切列表管理 */}
+                        {/* Model catalog status. The active model is always protected from disabling. */}
                         {data.model && (() => {
-                            const savedModels = data.providerConfigs?.[data.provider]?.models || [];
-                            const isInList = savedModels.includes(data.model);
+                            const providerCatalog = data.providerConfigs?.[data.provider] || {};
+                            const isEnabled = isModelEnabled(providerCatalog, data.model);
                             const isDeprecatedDeepSeekModel = resolvedProviderType === 'deepseek' && DEEPSEEK_DEPRECATED_MODELS.has(data.model);
                             return (
                                 <>
-                                    <button style={{ marginTop: 6, padding: '4px 12px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', background: isInList ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--bg-primary)', cursor: 'pointer', fontSize: 11, color: isInList ? 'var(--accent)' : 'var(--text-secondary)' }} onClick={() => {
+                                    <button style={{ marginTop: 6, padding: '4px 12px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', background: isEnabled ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--bg-primary)', cursor: 'pointer', fontSize: 11, color: isEnabled ? 'var(--accent)' : 'var(--text-secondary)' }} onClick={() => {
                                         const configs = { ...(data.providerConfigs || {}) };
-                                        if (!configs[data.provider]) configs[data.provider] = {};
-                                        const models = [...(configs[data.provider].models || [])];
-                                        if (isInList) {
-                                            configs[data.provider] = { ...configs[data.provider], models: models.filter(x => x !== data.model) };
-                                        } else {
-                                            models.push(data.model);
-                                            configs[data.provider] = { ...configs[data.provider], models };
-                                        }
+                                        configs[data.provider] = setModelEnabled(configs[data.provider] || {}, data.model, true, [data.model]);
                                         onChange({ ...data, providerConfigs: configs });
-                                    }}>{isInList ? text('☑ 已在快切列表', '☑ In quick switch list', '☑ В списке быстрого выбора') : text('☐ 加入快切列表', '☐ Add to quick switch list', '☐ Добавить в быстрый список')}</button>
+                                    }}>{isEnabled ? text('✓ Model enabled', '✓ Model enabled', '✓ Модель включена') : text('Enable model', 'Enable model', 'Включить модель')}</button>
                                     {isDeprecatedDeepSeekModel && (
                                         <div style={{ fontSize: 11, color: 'var(--warning, #b45309)', marginTop: 6 }}>{text('当前 DeepSeek 旧模型名将于 2026-07-24 停用，建议改用 deepseek-v4-pro 或 deepseek-v4-flash。', 'The current legacy DeepSeek model name will be retired on 2026-07-24. Use deepseek-v4-pro or deepseek-v4-flash instead.', 'Текущее устаревшее имя модели DeepSeek будет отключено 2026-07-24. Используйте deepseek-v4-pro или deepseek-v4-flash.')}</div>
                                     )}
@@ -2573,20 +2577,9 @@ function ApiConfigForm({ data, onChange }) {
                     {/* ===== 获取模型弹窗 ===== */}
                     {showModelModal && Array.isArray(fetchedModels) && (() => {
                         const savedModelsForModal = data.providerConfigs?.[data.provider]?.models || [];
-                        const fetchedModelIds = new Set((fetchedModels || [])
-                            .map(m => (typeof m === 'string' ? m : m?.id || m?.name || m?.displayName || '').trim())
-                            .filter(Boolean));
-                        const mergedModels = mergeFetchedAndSavedModels(fetchedModels, savedModelsForModal);
+                        const disabledModelsForModal = data.providerConfigs?.[data.provider]?.disabledModels || [];
+                        const mergedModels = mergeFetchedAndSavedModels(fetchedModels, savedModelsForModal, disabledModelsForModal);
                         const unavailableCount = mergedModels.filter(m => m.isUnavailable).length;
-                        const removeUnavailableModels = () => {
-                            const configs = { ...(data.providerConfigs || {}) };
-                            const currentConfig = configs[data.provider] || {};
-                            configs[data.provider] = {
-                                ...currentConfig,
-                                models: (currentConfig.models || []).filter(modelId => fetchedModelIds.has(modelId)),
-                            };
-                            onChange({ ...data, providerConfigs: configs });
-                        };
                         return (
                         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={e => { if (e.target === e.currentTarget) setShowModelModal(false); }}>
                             <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg, 14px)', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', width: 480, maxWidth: '90vw', maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'modelPickerFadeInDown 0.2s ease' }}>
@@ -2622,9 +2615,12 @@ function ApiConfigForm({ data, onChange }) {
                                     {mergedModels
                                         .filter(m => !modelSearch || m.id.toLowerCase().includes(modelSearch.toLowerCase()))
                                         .map(m => {
-                                            const savedModels = data.providerConfigs?.[data.provider]?.models || [];
-                                            const isInList = savedModels.includes(m.id);
+                                            const providerCatalog = data.providerConfigs?.[data.provider] || {};
+                                            const isInList = isModelEnabled(providerCatalog, m.id);
                                             const isActive = data.model === m.id;
+                                            const isChatActive = getProjectSettings().chatApiConfig?.provider === data.provider
+                                                && getProjectSettings().chatApiConfig?.model === m.id;
+                                            const isProtected = isActive || isChatActive;
                                             const mParams = getModelParams(data.provider, m.id);
                                             const hasParams = !!mParams;
                                             const isEditing = editingModelParams === m.id;
@@ -2636,21 +2632,15 @@ function ApiConfigForm({ data, onChange }) {
                                                         onMouseLeave={e => e.currentTarget.style.background = isActive ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent'}
                                                     >
                                                         {/* 勾选框 */}
-                                                        <button style={{ width: 22, height: 22, border: isInList ? '2px solid var(--accent)' : '2px solid var(--border-light)', borderRadius: 4, background: isInList ? 'var(--accent)' : 'transparent', color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }} onClick={() => {
+                                                        <button disabled={isProtected} title={isProtected ? text('Switch to another enabled model before disabling this one', 'Switch to another enabled model before disabling this one', 'Сначала переключитесь на другую включённую модель') : ''} style={{ width: 22, height: 22, border: isInList ? '2px solid var(--accent)' : '2px solid var(--border-light)', borderRadius: 4, background: isInList ? 'var(--accent)' : 'transparent', color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isProtected ? 'not-allowed' : 'pointer', opacity: isProtected ? 0.55 : 1, flexShrink: 0, transition: 'all 0.15s' }} onClick={() => {
                                                             const configs = { ...(data.providerConfigs || {}) };
-                                                            if (!configs[data.provider]) configs[data.provider] = {};
-                                                            const models = [...(configs[data.provider].models || [])];
-                                                            if (isInList) {
-                                                                configs[data.provider] = { ...configs[data.provider], models: models.filter(x => x !== m.id) };
-                                                            } else {
-                                                                models.push(m.id);
-                                                                configs[data.provider] = { ...configs[data.provider], models };
-                                                            }
+                                                            configs[data.provider] = setModelEnabled(configs[data.provider] || {}, m.id, !isInList, [data.model, isChatActive ? m.id : '']);
                                                             onChange({ ...data, providerConfigs: configs });
                                                         }}>{isInList ? '✓' : ''}</button>
                                                         {/* 模型名 */}
                                                         <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 12, color: isActive ? 'var(--accent)' : 'var(--text-primary)', fontWeight: isActive ? 600 : 400, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }} onClick={() => { update('model', m.id); }} title={m.isUnavailable ? text(`${m.id}（已保存，但未在本次拉取结果中）`, `${m.id} (saved, but not returned in this fetch)`, `${m.id} (сохранено, но не найдено в текущем списке)`) : text(`使用 ${m.id}`, `Use ${m.id}`, `Использовать ${m.id}`)}>{m.id}</span>
                                                         {m.isUnavailable && <span style={{ fontSize: 9, color: 'var(--warning, #b45309)', background: 'color-mix(in srgb, var(--warning, #b45309) 12%, transparent)', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>{text('未返回', 'Not returned', 'Не возвращено')}</span>}
+                                                        {!isInList && <span style={{ fontSize: 9, color: 'var(--text-muted)', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>{text('Disabled', 'Disabled', 'Отключена')}</span>}
                                                         {isDeprecatedDeepSeekModel && <span style={{ fontSize: 9, color: 'var(--warning, #b45309)', background: 'color-mix(in srgb, var(--warning, #b45309) 12%, transparent)', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>{text('2026-07-24 停用', 'Deprecated 2026-07-24', 'Устарело 2026-07-24')}</span>}
                                                         {/* 模型参数指示 */}
                                                         {hasParams && !isEditing && <span style={{ fontSize: 9, color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 10%, transparent)', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>{text('自定义参数', 'Custom params', 'Свои параметры')}</span>}
@@ -2728,13 +2718,8 @@ function ApiConfigForm({ data, onChange }) {
                                 </div>
                                 {/* 底部 */}
                                 <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{text(`已勾选 ${(data.providerConfigs?.[data.provider]?.models || []).length} 个模型`, `${(data.providerConfigs?.[data.provider]?.models || []).length} selected`, `Выбрано: ${(data.providerConfigs?.[data.provider]?.models || []).length}`)}</span>
+                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{text(`${mergedModels.filter(m => !m.isDisabled).length} enabled`, `${mergedModels.filter(m => !m.isDisabled).length} enabled`, `Включено: ${mergedModels.filter(m => !m.isDisabled).length}`)}</span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        {unavailableCount > 0 && (
-                                            <button style={{ padding: '6px 12px', borderRadius: 'var(--radius-sm, 6px)', border: '1px solid var(--warning, #b45309)', background: 'transparent', color: 'var(--warning, #b45309)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }} onClick={removeUnavailableModels}>
-                                                {text(`清理未返回模型 (${unavailableCount})`, `Clear missing (${unavailableCount})`, `Очистить отсутствующие (${unavailableCount})`)}
-                                            </button>
-                                        )}
                                         <button style={{ padding: '6px 20px', borderRadius: 'var(--radius-sm, 6px)', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }} onClick={() => setShowModelModal(false)}>{text('完成', 'Done', 'Готово')}</button>
                                     </div>
                                 </div>
@@ -3003,21 +2988,14 @@ function ApiConfigForm({ data, onChange }) {
                             </div>
                             {/* 快切列表管理 */}
                             {data.embedModel && (() => {
-                                const savedModels = data.embedProviderConfigs?.[data.embedProvider]?.models || [];
-                                const isInList = savedModels.includes(data.embedModel);
+                                const providerCatalog = data.embedProviderConfigs?.[data.embedProvider] || {};
+                                const isInList = isModelEnabled(providerCatalog, data.embedModel);
                                 return (
                                     <button style={{ marginTop: 6, padding: '4px 12px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', background: isInList ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--bg-primary)', cursor: 'pointer', fontSize: 11, color: isInList ? 'var(--accent)' : 'var(--text-secondary)' }} onClick={() => {
                                         const configs = { ...(data.embedProviderConfigs || {}) };
-                                        if (!configs[data.embedProvider]) configs[data.embedProvider] = {};
-                                        const models = [...(configs[data.embedProvider].models || [])];
-                                        if (isInList) {
-                                            configs[data.embedProvider] = { ...configs[data.embedProvider], models: models.filter(x => x !== data.embedModel) };
-                                        } else {
-                                            models.push(data.embedModel);
-                                            configs[data.embedProvider] = { ...configs[data.embedProvider], models };
-                                        }
+                                        configs[data.embedProvider] = setModelEnabled(configs[data.embedProvider] || {}, data.embedModel, true, [data.embedModel]);
                                         onChange({ ...data, embedProviderConfigs: configs });
-                                    }}>{isInList ? text('☑ 已在快切列表', '☑ In quick list', '☑ В списке') : text('☐ 加入快切列表', '☐ Add to quick list', '☐ В быстрый список')}</button>
+                                    }}>{isInList ? text('✓ Model enabled', '✓ Model enabled', '✓ Модель включена') : text('Enable model', 'Enable model', 'Включить модель')}</button>
                                 );
                             })()}
                             {embedFetchMsg && (
@@ -3037,20 +3015,9 @@ function ApiConfigForm({ data, onChange }) {
                         {/* ===== 嵌入模型弹窗（与主模型一致，带勾选框） ===== */}
                         {showEmbedModelModal && Array.isArray(fetchedEmbedModels) && (() => {
                             const savedEmbedModelsForModal = data.embedProviderConfigs?.[data.embedProvider]?.models || [];
-                            const fetchedEmbedModelIds = new Set((fetchedEmbedModels || [])
-                                .map(m => (typeof m === 'string' ? m : m?.id || m?.name || m?.displayName || '').trim())
-                                .filter(Boolean));
-                            const mergedEmbedModels = mergeFetchedAndSavedModels(fetchedEmbedModels, savedEmbedModelsForModal);
+                            const disabledEmbedModelsForModal = data.embedProviderConfigs?.[data.embedProvider]?.disabledModels || [];
+                            const mergedEmbedModels = mergeFetchedAndSavedModels(fetchedEmbedModels, savedEmbedModelsForModal, disabledEmbedModelsForModal);
                             const unavailableEmbedCount = mergedEmbedModels.filter(m => m.isUnavailable).length;
-                            const removeUnavailableEmbedModels = () => {
-                                const configs = { ...(data.embedProviderConfigs || {}) };
-                                const currentConfig = configs[data.embedProvider] || {};
-                                configs[data.embedProvider] = {
-                                    ...currentConfig,
-                                    models: (currentConfig.models || []).filter(modelId => fetchedEmbedModelIds.has(modelId)),
-                                };
-                                onChange({ ...data, embedProviderConfigs: configs });
-                            };
                             return (
                             <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={e => { if (e.target === e.currentTarget) setShowEmbedModelModal(false); }}>
                                 <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg, 14px)', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', width: 480, maxWidth: '90vw', maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'modelPickerFadeInDown 0.2s ease' }}>
@@ -3083,8 +3050,8 @@ function ApiConfigForm({ data, onChange }) {
                                         {mergedEmbedModels
                                             .filter(m => !embedModelSearch || m.id.toLowerCase().includes(embedModelSearch.toLowerCase()))
                                             .map(m => {
-                                                const savedModels = data.embedProviderConfigs?.[data.embedProvider]?.models || [];
-                                                const isInList = savedModels.includes(m.id);
+                                                const providerCatalog = data.embedProviderConfigs?.[data.embedProvider] || {};
+                                                const isInList = isModelEnabled(providerCatalog, m.id);
                                                 const isActive = data.embedModel === m.id;
                                                 return (
                                                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 'var(--radius-sm, 6px)', cursor: 'pointer', transition: 'background 0.1s', background: isActive ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent' }}
@@ -3092,21 +3059,15 @@ function ApiConfigForm({ data, onChange }) {
                                                         onMouseLeave={e => e.currentTarget.style.background = isActive ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent'}
                                                     >
                                                         {/* 勾选框 */}
-                                                        <button style={{ width: 22, height: 22, border: isInList ? '2px solid var(--accent)' : '2px solid var(--border-light)', borderRadius: 4, background: isInList ? 'var(--accent)' : 'transparent', color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }} onClick={() => {
+                                                        <button disabled={isActive} title={isActive ? text('Switch to another enabled model before disabling this one', 'Switch to another enabled model before disabling this one', 'Сначала переключитесь на другую включённую модель') : ''} style={{ width: 22, height: 22, border: isInList ? '2px solid var(--accent)' : '2px solid var(--border-light)', borderRadius: 4, background: isInList ? 'var(--accent)' : 'transparent', color: '#fff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isActive ? 'not-allowed' : 'pointer', opacity: isActive ? 0.55 : 1, flexShrink: 0, transition: 'all 0.15s' }} onClick={() => {
                                                             const configs = { ...(data.embedProviderConfigs || {}) };
-                                                            if (!configs[data.embedProvider]) configs[data.embedProvider] = {};
-                                                            const models = [...(configs[data.embedProvider].models || [])];
-                                                            if (isInList) {
-                                                                configs[data.embedProvider] = { ...configs[data.embedProvider], models: models.filter(x => x !== m.id) };
-                                                            } else {
-                                                                models.push(m.id);
-                                                                configs[data.embedProvider] = { ...configs[data.embedProvider], models };
-                                                            }
+                                                            configs[data.embedProvider] = setModelEnabled(configs[data.embedProvider] || {}, m.id, !isInList, [data.embedModel]);
                                                             onChange({ ...data, embedProviderConfigs: configs });
                                                         }}>{isInList ? '✓' : ''}</button>
                                                         {/* 模型名 */}
                                                         <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 12, color: isActive ? 'var(--accent)' : 'var(--text-primary)', fontWeight: isActive ? 600 : 400, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }} onClick={() => { update('embedModel', m.id); }} title={m.isUnavailable ? text(`${m.id}（已保存，但未在本次拉取结果中）`, `${m.id} (saved, but not returned in this fetch)`, `${m.id} (сохранено, но не найдено в текущем списке)`) : text(`使用 ${m.id}`, `Use ${m.id}`, `Использовать ${m.id}`)}>{m.id}</span>
                                                         {m.isUnavailable && <span style={{ fontSize: 9, color: 'var(--warning, #b45309)', background: 'color-mix(in srgb, var(--warning, #b45309) 12%, transparent)', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>{text('未返回', 'Not returned', 'Не возвращено')}</span>}
+                                                        {!isInList && <span style={{ fontSize: 9, color: 'var(--text-muted)', padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>{text('Disabled', 'Disabled', 'Отключена')}</span>}
                                                         {isActive && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{text('当前', 'Current', 'Текущая')}</span>}
                                                     </div>
                                                 );
@@ -3115,11 +3076,6 @@ function ApiConfigForm({ data, onChange }) {
                                     <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{text(`已勾选 ${(data.embedProviderConfigs?.[data.embedProvider]?.models || []).length} 个模型`, `${(data.embedProviderConfigs?.[data.embedProvider]?.models || []).length} selected`, `Выбрано: ${(data.embedProviderConfigs?.[data.embedProvider]?.models || []).length}`)}</span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            {unavailableEmbedCount > 0 && (
-                                                <button style={{ padding: '6px 12px', borderRadius: 'var(--radius-sm, 6px)', border: '1px solid var(--warning, #b45309)', background: 'transparent', color: 'var(--warning, #b45309)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }} onClick={removeUnavailableEmbedModels}>
-                                                    {text(`清理未返回模型 (${unavailableEmbedCount})`, `Clear missing (${unavailableEmbedCount})`, `Очистить отсутствующие (${unavailableEmbedCount})`)}
-                                                </button>
-                                            )}
                                             <button style={{ padding: '6px 20px', borderRadius: 'var(--radius-sm, 6px)', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }} onClick={() => setShowEmbedModelModal(false)}>{text('完成', 'Done', 'Готово')}</button>
                                         </div>
                                     </div>

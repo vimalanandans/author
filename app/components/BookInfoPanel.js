@@ -11,6 +11,7 @@ import { resolveAiEndpoint } from '../lib/ai-provider-compat';
 import { aiFetch } from '../lib/ai-direct';
 import { readAiEvents } from '../lib/ai-stream.js';
 import { localizeApiError } from '../lib/api-error-i18n';
+import ModelPicker from './ModelPicker';
 import {
     X, Maximize2, Minimize2, BookOpen, Users, MapPin, Globe, Gem, ClipboardList, Ruler,
     Layers, Clock, ChevronRight, FileText, Settings as SettingsIcon,
@@ -1073,12 +1074,14 @@ export default function BookInfoPanel() {
                                                 <Sparkles size={14} style={{ color: '#f59e0b' }} />
                                                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{text('AI 评价', 'AI Review', 'AI-оценка')}</span>
                                             </div>
+                                            <ModelPicker target="chat" dropDirection="down" />
                                             <button
                                                 onClick={async () => {
                                                     setAiEvalLoading(true);
                                                     try {
                                                         const apiConfig = getChatApiConfig();
-                                                        if (!apiConfig?.apiKey) { setAiEval({ _error: text('请先在设置中配置 AI API', 'Configure the AI API in Settings first', 'Сначала настройте AI API в настройках') }); return; }
+                                                        const isKeylessLocalModel = (apiConfig?.providerType || apiConfig?.provider) === 'ollama';
+                                                        if (!apiConfig?.apiKey && !(isKeylessLocalModel && apiConfig?.baseUrl)) { setAiEval({ _error: text('请先在设置中配置 AI API', 'Configure the AI API in Settings first', 'Сначала настройте AI API в настройках') }); return; }
                                                         const apiEndpoint = resolveAiEndpoint(apiConfig);
 
                                                         const fields = [
