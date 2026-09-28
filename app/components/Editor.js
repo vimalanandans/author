@@ -75,6 +75,16 @@ function escapeHtml(text) {
         .replace(/'/g, '&#39;');
 }
 
+function markdownToEditorHtml(editor, source) {
+    const markdown = String(source || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    if (!markdown) return '';
+    const parser = editor?.storage?.markdown?.parser;
+    if (parser) {
+        return parser.parse(markdown, { inline: false });
+    }
+    return `<p>${escapeHtml(markdown).replace(/\n/g, '<br>')}</p>`;
+}
+
 function serializeFragmentToHtml(schema, fragment) {
     if (typeof document === 'undefined' || !schema || !fragment) return '';
     const container = document.createElement('div');
@@ -793,7 +803,7 @@ const Editor = forwardRef(function Editor({ content, contentReceipt = null, chap
                 return editor.state.doc.textBetween(from, to, ' ');
             };
             editor.insertText = (text) => {
-                editor.chain().focus().insertContent(text).run();
+                editor.chain().focus().insertContent(markdownToEditorHtml(editor, text)).run();
             };
             editor.replaceSelection = (text) => {
                 const { from, to } = editor.state.selection;
@@ -813,16 +823,7 @@ const Editor = forwardRef(function Editor({ content, contentReceipt = null, chap
         insertText: (text) => {
             if (!editor) return;
             // 规范化换行
-            const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-            // 按空行（双换行）分段，段内用 <br> 换行
-            const blocks = normalized.split(/\n\n+/);
-            const html = blocks
-                .map(block => {
-                    const lines = block.split('\n').map(l => escapeHtml(l.trim())).filter(l => l);
-                    return `<p>${lines.join('<br>')}</p>`;
-                })
-                .filter(p => p !== '<p></p>')
-                .join('');
+            const html = markdownToEditorHtml(editor, text);
             editor.chain().focus().insertContent(html).run();
         },
     }), [editor, flushPendingSave]);
@@ -962,7 +963,7 @@ const Editor = forwardRef(function Editor({ content, contentReceipt = null, chap
                                 }}
                             >
                                 <span style={{ fontSize: 11, color: 'var(--text-muted)', userSelect: 'none', opacity: 0.6 }}>
-                                    第 {i + 1} 页 / 共 {pageCount} 页
+                                    {text(`第 ${i + 1} 页 / 共 ${pageCount} 页`, `Page ${i + 1} of ${pageCount}`, `Страница ${i + 1} из ${pageCount}`)}
                                 </span>
                             </div>
                         );

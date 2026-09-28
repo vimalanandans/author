@@ -133,7 +133,7 @@ function mergeChapterHtml(currentHtml, nextHtml) {
 function tryNextChapterTitle(title) {
   const source = String(title || '').trim();
   const arabic = source.match(/第(\d+)章/);
-  if (arabic) return `第${Number(arabic[1]) + 1}章`;
+  if (arabic) return `Chapter ${Number(arabic[1]) + 1}`;
   const trailing = source.match(/^(.+?)(\d+)\s*$/);
   if (trailing) return `${trailing[1]}${Number(trailing[2]) + 1}`;
   return null;
@@ -142,11 +142,11 @@ function tryNextChapterTitle(title) {
 function makeUniqueChapterTitle(chapters, title) {
   const existing = new Set((chapters || []).map(ch => ch?.title).filter(Boolean));
   if (!existing.has(title)) return title;
-  const first = `${title}（新）`;
+  const first = `${title} (New)`;
   if (!existing.has(first)) return first;
   let index = 2;
-  while (existing.has(`${title}（新${index}）`)) index++;
-  return `${title}（新${index}）`;
+  while (existing.has(`${title} (New ${index})`)) index++;
+  return `${title} (New ${index})`;
 }
 
 export default function Home() {
@@ -171,7 +171,7 @@ export default function Home() {
     chatStreaming, setChatStreaming
   } = useAppStore();
 
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [showHelp, setShowHelp] = useState(false);
   const [memoryGroupsVersion, setMemoryGroupsVersion] = useState(0);
   const editorRef = useRef(null);
@@ -638,11 +638,11 @@ export default function Home() {
     updateChapterStore(activeChapter.id, { numberingIgnored });
     showToast(
       numberingIgnored
-        ? `「${activeChapter.title}」已设为特殊章节，重排编号时会跳过`
-        : `「${activeChapter.title}」已恢复普通章节`,
+        ? t('page.specialChapterEnabled', { title: activeChapter.title })
+        : t('page.specialChapterDisabled', { title: activeChapter.title }),
       'success'
     );
-  }, [activeChapter, activeWorkId, showToast, updateChapterStore]);
+  }, [activeChapter, activeWorkId, showToast, t, updateChapterStore]);
 
   const handleEditorUpdate = useCallback(async ({ chapterId: targetChapterId, workId: targetWorkId, html, wordCount, baseContent, externalVersions, receipt }) => {
     // Destructive writes must name the document that actually produced the HTML.
@@ -669,7 +669,7 @@ export default function Home() {
   const handleSplitActiveChapter = useCallback(async (draft) => {
     if (!activeChapter || !isWritableChapter(activeChapter)) return null;
     if (!draft || draft.beforeWordCount <= 0 || draft.afterWordCount <= 0) {
-      showToast('请把光标放在正文中间，拆分点前后都需要有内容', 'error');
+      showToast(t('page.splitNeedsContent'), 'error');
       return null;
     }
 
@@ -678,7 +678,7 @@ export default function Home() {
 
     const now = new Date().toISOString();
     const fallbackTitle = activeChapter.title
-      ? `${activeChapter.title}（下）`
+      ? `${activeChapter.title} (Part 2)`
       : t('sidebar.defaultChapterTitle').replace('{num}', chapters.length + 1);
     const title = makeUniqueChapterTitle(
       chapters,
@@ -706,7 +706,7 @@ export default function Home() {
     await saveChapters(nextChapters, activeWorkId);
     setChapters(nextChapters);
     setActiveChapterId(newChapter.id);
-    showToast(`已拆分为「${activeChapter.title}」和「${newChapter.title}」`, 'success');
+    showToast(t('page.splitSuccess', { first: activeChapter.title, second: newChapter.title }), 'success');
     return { chapterId: newChapter.id };
   }, [activeChapter, activeWorkId, chapters, setActiveChapterId, setChapters, showToast, t]);
 
@@ -720,7 +720,7 @@ export default function Home() {
       index > currentIndex && isWritableChapter(chapter)
     );
     if (nextIndex === -1) {
-      showToast('当前章节后面没有可合并的章节', 'error');
+      showToast(t('page.mergeNoNextChapter'), 'error');
       return null;
     }
 
@@ -742,9 +742,9 @@ export default function Home() {
     await saveChapters(nextChapters, activeWorkId);
     setChapters(nextChapters);
     setActiveChapterId(activeChapter.id);
-    showToast(`已将「${nextChapter.title}」合并到当前章节`, 'success');
+    showToast(t('page.mergeSuccess', { title: nextChapter.title }), 'success');
     return { content: mergedContent, chapterId: activeChapter.id };
-  }, [activeChapter, activeWorkId, chapters, setActiveChapterId, setChapters, showToast]);
+  }, [activeChapter, activeWorkId, chapters, setActiveChapterId, setChapters, showToast, t]);
 
   // Inline AI 回调：编辑器调用此函数发起 AI 请求
   const handleInlineAiRequest = useCallback(async ({ mode, text, instruction, signal, onChunk }) => {
@@ -754,7 +754,7 @@ export default function Home() {
     try {
       // 使用上下文引擎收集项目信息
       const context = await buildContext(activeChapterId, text, contextSelection, activeWorkId);
-      const systemPrompt = compileSystemPrompt(context, mode);
+      const systemPrompt = compileSystemPrompt(context, mode, { language });
       const userPrompt = compileUserPrompt(mode, text, instruction);
 
       const { apiConfig } = getProjectSettings();
@@ -825,7 +825,7 @@ export default function Home() {
         throw err;
       }
     }
-  }, [activeWorkId, activeChapterId, contextSelection, showToast, t]);
+  }, [activeWorkId, activeChapterId, contextSelection, language, showToast, t]);
 
   // AI 生成存档 — Editor 的 ghost text 操作会调用此函数
   const handleArchiveGeneration = useCallback((entry) => {
@@ -982,7 +982,7 @@ export default function Home() {
                 style={aiTogglePos ? { left: aiTogglePos.left, top: aiTogglePos.top, right: 'auto', transform: 'none' } : undefined}
               >
                 <Sparkles size={16} />
-                <span>{t('page.aiAssistantLabel') || 'AI 助手'}</span>
+                <span>{t('page.aiAssistantLabel') || 'AI Assistant'}</span>
               </button>
             </Tooltip>
           )}

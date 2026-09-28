@@ -47,6 +47,16 @@ export function localizeApiError(payload, text) {
             return text('网络连接失败，请检查 API 地址是否正确', 'Network connection failed. Please check that the API address is correct.', 'Сбой сетевого подключения. Проверьте правильность адреса API.');
         case 'NETWORK_ERROR_PROXY':
             return text('网络连接失败，请检查兼容 API 地址或代理设置', 'Network connection failed. Please check the compatible API address or proxy settings.', 'Сбой сетевого подключения. Проверьте адрес совместимого API или настройки прокси.');
+        case 'OUTBOUND_REQUEST_BLOCKED':
+            return text(
+                '此部署不能访问该地址。自部署连接本地或内网模型时，请设置 AUTHOR_ALLOW_PRIVATE_NETWORK=1 后重启服务。',
+                'This deployment cannot access that address. To connect a self-hosted app to a local or private-network model, set AUTHOR_ALLOW_PRIVATE_NETWORK=1 and restart the server.',
+                'Это развёртывание не может обратиться к этому адресу. Для подключения локальной или частной сетевой модели в самостоятельном развёртывании установите AUTHOR_ALLOW_PRIVATE_NETWORK=1 и перезапустите сервер.'
+            );
+        case 'NO_MODEL_OLLAMA':
+            return text('请先选择一个 Ollama 模型。', 'Select an Ollama model first.', 'Сначала выберите модель Ollama.');
+        case 'NO_BASE_URL_OLLAMA':
+            return text('请先填写 Ollama 服务器地址。', 'Enter an Ollama server URL first.', 'Сначала укажите URL сервера Ollama.');
 
         // —— Embedding 配置 ——
         case 'NO_BASE_URL_EMBED':

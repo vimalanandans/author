@@ -370,6 +370,44 @@ ipcMain.handle('secure-store-delete', async (event, key) => {
     return { success: true };
 });
 
+ipcMain.handle('project-file-open', async (event) => {
+    assertTrustedIpcSender(event);
+    const result = await dialog.showOpenDialog({
+        title: 'Open Author Project',
+        properties: ['openFile'],
+        filters: [{ name: 'Author Project', extensions: ['json'] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    try {
+        const filePath = result.filePaths[0];
+        return { success: true, path: filePath, name: path.basename(filePath), content: await fs.promises.readFile(filePath, 'utf8') };
+    } catch (error) {
+        return { success: false, error: error?.message || 'Unable to read the project file.' };
+    }
+});
+
+ipcMain.handle('project-file-save', async (event, payload = {}) => {
+    assertTrustedIpcSender(event);
+    const content = typeof payload.content === 'string' ? payload.content : '';
+    if (!content) return { success: false, error: 'Project content is empty.' };
+    let filePath = typeof payload.path === 'string' ? payload.path : '';
+    if (!filePath || payload.saveAs) {
+        const result = await dialog.showSaveDialog({
+            title: 'Save Author Project',
+            defaultPath: payload.suggestedName || 'Author Project.json',
+            filters: [{ name: 'Author Project', extensions: ['json'] }],
+        });
+        if (result.canceled || !result.filePath) return { canceled: true };
+        filePath = result.filePath;
+    }
+    try {
+        await fs.promises.writeFile(filePath, content, 'utf8');
+        return { success: true, path: filePath, name: path.basename(filePath) };
+    } catch (error) {
+        return { success: false, error: error?.message || 'Unable to save the project file.' };
+    }
+});
+
 ipcMain.on('ai-credential-bundle-get', (event) => {
     try {
         assertTrustedIpcSender(event);

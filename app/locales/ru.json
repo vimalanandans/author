@@ -418,6 +418,12 @@
         "toastNetworkError": "Ошибка сетевого соединения",
         "dialogueUser": "Пользователь",
         "dialogueHistory": "История чата",
+        "splitNeedsContent": "Поместите курсор внутрь главы: текст должен быть с обеих сторон разделения.",
+        "splitSuccess": "Глава «{first}» разделена на «{first}» и «{second}».",
+        "mergeNoNextChapter": "Нет следующей главы для объединения.",
+        "mergeSuccess": "Глава «{title}» объединена с текущей главой.",
+        "specialChapterEnabled": "«{title}» теперь особая глава и будет пропущена при перенумерации.",
+        "specialChapterDisabled": "«{title}» снова обычная глава.",
         "autoSnapshot": "Автосохранение",
         "autoSnapshotFail": "Ошибка автосохранения:",
         "firstChapterTitle": "Глава 1"

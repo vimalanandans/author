@@ -11,6 +11,7 @@ import { applyContentSafety } from '../../../lib/content-safety';
 import { proxyFetch } from '../../../lib/proxy-fetch';
 import { rotateKey } from '../../../lib/keyRotator';
 import { isOutboundRequestBlocked, isServerCredentialBlocked, resolveAiCredential, safeUpstreamDetail } from '../../../lib/server-security.mjs';
+import { GEMINI_NATIVE_BASE_URL } from '../../../lib/ai-provider-defaults.js';
 
 async function handlePOST(request) {
     const lifecycle = createGenerationLifecycle(request.signal);
@@ -28,8 +29,7 @@ async function handlePOST(request) {
             envBaseUrl: process.env.GEMINI_BASE_URL,
         });
         const apiKey = rotateKey(credential.apiKey);
-        // 不内置官方默认地址：baseUrl 必须由用户填写（open core 边界）
-        const baseUrl = credential.baseUrl;
+        const baseUrl = (credential.baseUrl || GEMINI_NATIVE_BASE_URL).replace(/\/+$/, '');
         const model = apiConfig?.model || process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
         if (!apiKey) {
@@ -41,7 +41,7 @@ async function handlePOST(request) {
 
         if (!baseUrl) {
             return new Response(
-                JSON.stringify({ error: '请先填写 Gemini 原生 API 地址（通常以 /v1beta 结尾）', code: 'NO_BASE_URL_GEMINI' }),
+                JSON.stringify({ error: 'Enter a Gemini API base URL.', code: 'NO_BASE_URL_GEMINI' }),
                 { status: 400, headers: { 'Content-Type': 'application/json' } }
             );
         }

@@ -133,6 +133,79 @@ export function streamAiResponse(upstream, lifecycle, mapper, initialEvents = []
     }), { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' } });
 }
 
+// Ollama's native API streams newline-delimited JSON instead of SSE. Convert it
+// to the application's compact SSE protocol while preserving backpressure and
+// cancellation semantics used by the other provider routes.
+export function streamJsonLinesAiResponse(upstream, lifecycle, mapper) {
+    lifecycle.streaming = true;
+    let cancelled = false;
+    async function* packets() {
+        const reader = upstream.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        try {
+            if (!reader) throw aiStreamError();
+            while (true) {
+                lifecycle.signal.throwIfAborted();
+                const { done, value } = await reader.read();
+                if (value?.length) lifecycle.touch();
+                buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+                if (buffer.length > MAX_EVENT_CHARS) throw aiStreamError('AI_STREAM_TOO_LARGE');
+
+                let newline;
+                while ((newline = buffer.indexOf('\n')) !== -1) {
+                    const line = buffer.slice(0, newline).trim();
+                    buffer = buffer.slice(newline + 1);
+                    if (!line) continue;
+                    const { events = [], done: isDone = false, error } = mapper(line);
+                    for (const event of events) yield event;
+                    if (error) throw error;
+                    if (isDone) {
+                        yield { status: 'done' };
+                        yield '[DONE]';
+                        return;
+                    }
+                }
+                if (done) {
+                    const line = buffer.trim();
+                    if (line) {
+                        const { events = [], done: isDone = false, error } = mapper(line);
+                        for (const event of events) yield event;
+                        if (error) throw error;
+                        if (isDone) {
+                            yield { status: 'done' };
+                            yield '[DONE]';
+                            return;
+                        }
+                    }
+                    throw aiStreamError();
+                }
+            }
+        } catch (error) {
+            if (!cancelled) yield failureEvent(error, lifecycle.signal);
+        } finally {
+            await reader?.cancel().catch(() => {});
+            reader?.releaseLock();
+            lifecycle.dispose();
+        }
+    }
+    const iterator = packets();
+    return new Response(new ReadableStream({
+        async pull(controller) {
+            const next = await iterator.next();
+            if (cancelled) return;
+            if (next.done) controller.close();
+            else controller.enqueue(encoder.encode(`data: ${next.value === '[DONE]' ? '[DONE]' : JSON.stringify(next.value)}\n\n`));
+        },
+        async cancel() {
+            cancelled = true;
+            lifecycle.abort();
+            if (!upstream.body?.locked) await upstream.body?.cancel().catch(() => {});
+            await iterator.return();
+        },
+    }), { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' } });
+}
+
 export function createOpenAiMapper() {
     let finishReason;
     return data => {
@@ -217,5 +290,29 @@ export function createGeminiMapper() {
             return { events, error: aiStreamError() };
         }
         return { events, done: candidate?.finishReason === 'STOP' };
+    };
+}
+
+export function createOllamaMapper() {
+    return data => {
+        const json = parsePayload(data);
+        if (json.error) throw aiStreamError('AI_STREAM_FAILED');
+        const events = [];
+        if (json.message?.thinking) events.push({ thinking: json.message.thinking });
+        if (json.message?.content) events.push({ text: json.message.content });
+        if (json.done) {
+            const promptTokens = json.prompt_eval_count || 0;
+            const completionTokens = json.eval_count || 0;
+            events.push({ usage: {
+                promptTokens,
+                completionTokens,
+                totalTokens: promptTokens + completionTokens,
+                cachedTokens: json.prompt_eval_cached_count || 0,
+            } });
+        }
+        if (json.done && json.done_reason && !['stop', ''].includes(json.done_reason)) {
+            return { events, error: aiStreamError() };
+        }
+        return { events, done: json.done === true };
     };
 }

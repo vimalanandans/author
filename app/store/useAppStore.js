@@ -177,7 +177,7 @@ const store = create((set, get) => ({
     setWritingMode: (mode) => set({ writingMode: mode }),
 
     // --- Localization & Theming ---
-    language: typeof window !== 'undefined' ? localStorage.getItem('author-lang') || null : null,
+    language: typeof window !== 'undefined' ? localStorage.getItem('author-lang') || 'en' : 'en',
     setLanguage: (lang) => set(() => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('author-lang', lang);

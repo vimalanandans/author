@@ -21,7 +21,9 @@ test('private and loopback IP addresses are rejected by default', async () => {
     }
     await assert.rejects(
         assertSafeOutboundUrl('http://127.0.0.1:8080/api'),
-        error => error?.code === 'OUTBOUND_REQUEST_BLOCKED',
+        error => error?.code === 'OUTBOUND_REQUEST_BLOCKED'
+            && /Local and private-network addresses are disabled/.test(error.message)
+            && !/[\u4e00-\u9fff]/.test(error.message),
     );
 });
 

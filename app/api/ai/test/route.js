@@ -21,6 +21,9 @@ async function handlePOST(request) {
         // 浏览器配置残留的 providerType（例如 provider=deepseek/providerType=claude）。
         provider = provider || providerType;
 
+        if (provider === 'ollama') {
+            return await testOllama(apiKey, baseUrl, model, proxyUrl);
+        }
         if (!apiKey) {
             return NextResponse.json({ success: false, error: '请先填入 API Key', code: 'NO_API_KEY' }, { status: 400 });
         }
@@ -42,6 +45,33 @@ async function handlePOST(request) {
         }
         return NextResponse.json({ success: false, error: '网络连接失败，请检查兼容 API 地址或代理设置', code: 'NETWORK_ERROR_PROXY' });
     }
+}
+
+async function testOllama(apiKey, baseUrl, model, proxyUrl) {
+    const base = String(baseUrl || '').trim().replace(/\/+$/, '');
+    const selectedModel = String(model || '').trim();
+    if (!base) return NextResponse.json({ success: false, error: 'Enter an Ollama server URL first.', code: 'NO_BASE_URL_OLLAMA' }, { status: 400 });
+    if (!selectedModel) return NextResponse.json({ success: false, error: 'Select an Ollama model before testing.', code: 'NO_MODEL_OLLAMA' }, { status: 400 });
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    const response = await proxyFetch(`${base}/api/chat`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            model: selectedModel,
+            messages: [{ role: 'user', content: 'Reply with: Connection successful' }],
+            stream: false,
+            options: { num_predict: 20 },
+        }),
+    }, proxyUrl);
+    if (!response.ok) return connectionError(response);
+    const data = await response.json();
+    return NextResponse.json({
+        success: true,
+        message: 'Ollama connection successful.',
+        model: selectedModel,
+        reply: String(data?.message?.content || '').trim(),
+    });
 }
 
 async function testOpenAICompatible(apiKey, baseUrl, model, proxyUrl, provider) {

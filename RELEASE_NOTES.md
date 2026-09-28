@@ -1,17 +1,17 @@
-## v1.2.58 — 支持连接局域网本地模型，改进同步与长时间生成
+## v1.2.58 — Local model connections, improved synchronization, and long-running generation
 
-### 中文
+### English
 
-#### 桌面端与网页版
+#### Desktop and Web
 
-- Docker 与源码部署新增 `AUTHOR_ALLOW_PRIVATE_NETWORK` 开关。自己或信任的人使用的部署（例如放在 NAS 上）开启后，可以连接本机或局域网里的本地模型（Ollama、LM Studio 等）和 WebDAV。默认仍然关闭；能从外网访问的实例请不要开启。
-- 新增本地模型连接指南（`LOCAL_MODELS.md`），涵盖不同部署方式、模型软件设置、地址填写和常见报错；帮助页和各语言 README 已加入入口。
-- 生成超时改为按"模型多久没有输出"计算。只要模型还在输出，就不会在 2 分钟时被中途切断，输出较慢的模型也能写完长内容。
-- 改进同步：手机浏览器切到后台时会立即上传未同步的修改，关闭页面后下次打开会继续上传；内容较多时按大小分批上传，不再整批失败。
-- 修复从 WebDAV、局域网或快照恢复后，部分设定一直无法同步到云端的问题。
-- 同步失败时按原因给出提示（认证失败、路径不存在、内容过大、连不上服务器等）；云端没有找到数据时，不再显示为拉取成功。
-- 升级前没有上传成功的修改不会被自动补传，请在升级后手动点一次"同步到云端"（WebDAV 为"推送本机"）。
-- 感谢 [@inliver233](https://github.com/inliver233) 报告多项安全问题并提供修复方案。
+- Docker and source deployments now support the `AUTHOR_ALLOW_PRIVATE_NETWORK` switch. When enabled for a deployment used only by you or people you trust (for example, on a NAS), Author can connect to local or LAN-hosted models such as Ollama and LM Studio, as well as WebDAV. It remains disabled by default; do not enable it for publicly reachable instances.
+- Added the local model connection guide (`LOCAL_MODELS.md`), covering deployment modes, model-server settings, address configuration, and common errors. The Help page and localized README files now link to it.
+- Generation timeouts now measure how long the model has gone without producing output. As long as output continues, generation is not interrupted after two minutes, allowing slower models to finish long responses.
+- Improved synchronization: mobile browsers upload pending changes when sent to the background and resume uploading the next time the page opens. Large changes are uploaded in size-based batches instead of failing as one batch.
+- Fixed an issue where some settings could remain unsynchronized after restoring from WebDAV, LAN sync, or a snapshot.
+- Synchronization failures now explain the cause, such as authentication failure, a missing path, oversized content, or an unreachable server. A missing cloud record is no longer reported as a successful pull.
+- Changes that failed to upload before an upgrade are not retried automatically. After upgrading, manually select “Sync to Cloud” (or “Push Local” for WebDAV).
+- Thanks to [@inliver233](https://github.com/inliver233) for reporting several security issues and providing fixes.
 
 ---
 

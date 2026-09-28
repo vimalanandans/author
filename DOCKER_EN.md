@@ -145,7 +145,7 @@ A: Data is stored in your browser's IndexedDB and localStorage, independent of t
 ### Q: Can I use it on mobile/tablet?
 A: Yes. After deploying to a server, access `http://server-ip:3000` from any device's browser on the same network.
 
-### Q: How do I connect a local model (Ollama, LM Studio, …)? What about "服务端默认禁止访问本机或内网地址" (loopback/LAN addresses blocked)?
+### Q: How do I connect a local model (Ollama, LM Studio, …)? What about “The server blocks loopback/LAN addresses by default”?
 A: The Docker build blocks loopback and LAN addresses by default. For a deployment only you or people you trust use, add `AUTHOR_ALLOW_PRIVATE_NETWORK=1` to `.env` and run `docker compose up -d`.
 
 Two more things matter: inside the container, `localhost` points at the container itself, so use the LAN IP of the machine running the model; and the model server must be set to accept other devices. For full steps, every deployment layout, running the model on the NAS, and common errors, see the [Local Model Guide](LOCAL_MODELS_EN.md).

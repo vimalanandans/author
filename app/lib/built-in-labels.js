@@ -34,6 +34,40 @@ const ENDPOINT_NAME_GROUPS = [
     { zh: '迁移的兼容端点', en: 'Migrated compatible endpoint', ru: 'Перенесённый совместимый эндпоинт' },
 ];
 
+const CHINESE_DIGITS = new Map([
+    ['零', 0], ['〇', 0], ['一', 1], ['二', 2], ['两', 2], ['三', 3], ['四', 4],
+    ['五', 5], ['六', 6], ['七', 7], ['八', 8], ['九', 9], ['十', 10],
+]);
+
+function parseChineseChapterNumber(value) {
+    if (!value) return null;
+    if (/^\d+$/.test(value)) return Number(value);
+    if (value === '十') return 10;
+    if (value.includes('十')) {
+        const [tens = '', ones = ''] = value.split('十');
+        const tensValue = tens ? CHINESE_DIGITS.get(tens) : 1;
+        const onesValue = ones ? CHINESE_DIGITS.get(ones) : 0;
+        return Number.isInteger(tensValue) && Number.isInteger(onesValue) ? tensValue * 10 + onesValue : null;
+    }
+    const number = CHINESE_DIGITS.get(value);
+    return Number.isInteger(number) ? number : null;
+}
+
+/**
+ * Localize only generated chapter and volume titles. User-created titles are
+ * returned unchanged, even when they contain Chinese text.
+ */
+export function getBuiltInChapterTitle(name, text) {
+    if (typeof name !== 'string' || typeof text !== 'function') return name;
+    const match = name.trim().match(/^第([零〇一二两三四五六七八九十\d]+)(章|卷)$/);
+    if (!match) return name;
+    const number = parseChineseChapterNumber(match[1]);
+    if (!Number.isInteger(number) || number < 1) return name;
+    return match[2] === '章'
+        ? text(`第${number}章`, `Chapter ${number}`, `Глава ${number}`)
+        : text(`第${number}卷`, `Volume ${number}`, `Том ${number}`);
+}
+
 const ICON_LABELS = [
     { name: 'user', zh: '人物', en: 'Character', ru: 'Персонаж' },
     { name: 'map-pin', zh: '地点', en: 'Place', ru: 'Место' },

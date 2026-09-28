@@ -418,6 +418,12 @@
     "toastNetworkError": "Network connection failed",
     "dialogueUser": "User",
     "dialogueHistory": "Chat History",
+    "splitNeedsContent": "Place the cursor within the chapter; both sides of the split need content.",
+    "splitSuccess": "Split \"{first}\" into \"{first}\" and \"{second}\".",
+    "mergeNoNextChapter": "There is no following chapter to merge.",
+    "mergeSuccess": "Merged \"{title}\" into the current chapter.",
+    "specialChapterEnabled": "\"{title}\" is now a special chapter and will be skipped when renumbering.",
+    "specialChapterDisabled": "\"{title}\" is now a regular chapter.",
     "autoSnapshot": "Auto Snapshot",
     "autoSnapshotFail": "Auto snapshot failed:",
     "firstChapterTitle": "Chapter 1"

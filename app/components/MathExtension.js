@@ -5,7 +5,7 @@ import { InputRule } from '@tiptap/core';
 import katex from 'katex';
 
 function mathText(zh, en, ru = en) {
-    const lang = typeof window !== 'undefined' ? localStorage.getItem('author-lang') : 'zh';
+    const lang = typeof window !== 'undefined' ? localStorage.getItem('author-lang') || 'en' : 'en';
     if (lang === 'en') return en;
     if (lang === 'ru') return ru;
     return zh;

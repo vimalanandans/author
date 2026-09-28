@@ -1,6 +1,6 @@
 // 运行时语言工具：供「在浏览器运行、但拿不到 useI18n hook」的库代码使用。
 // 同步、文件导入、向量等非组件模块直接读持久化的 author-lang 出文案；
-// 服务端（无 window）一律回退中文。
+// The server (where window is unavailable) falls back to English.
 //
 // 与 api-error-i18n.js 的分工：
 //   - api-error-i18n：服务端路由返回机器码 code，组件层（有 useI18n 的 text）按 code 翻译。
@@ -9,10 +9,10 @@
 export function currentLang() {
     try {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('author-lang') || 'zh';
+            return localStorage.getItem('author-lang') || 'en';
         }
     } catch { /* localStorage 不可用时回退 */ }
-    return 'zh';
+    return 'en';
 }
 
 // translate：按当前界面语言三选一

@@ -235,6 +235,11 @@ export async function persistSet(key, value, options = {}) {
         }
         enqueuePortableSync(key, value, options);
     }
+    // A project file is an opt-in local mirror. Debouncing here covers every
+    // normal chapter/settings save while never exposing its path to sync.
+    if (key !== 'author-project-file-binding') {
+        import('./project-io').then(({ scheduleProjectAutoSave }) => scheduleProjectAutoSave()).catch(() => {});
+    }
 }
 
 /**

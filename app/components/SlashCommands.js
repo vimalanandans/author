@@ -13,15 +13,15 @@ import {
  * 斜杠命令列表数据
  */
 const COMMANDS = [
-    { id: 'h1', label: '一级标题', keywords: 'h1 heading', icon: Heading1, action: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run() },
-    { id: 'h2', label: '二级标题', keywords: 'h2 heading', icon: Heading2, action: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run() },
-    { id: 'h3', label: '三级标题', keywords: 'h3 heading', icon: Heading3, action: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run() },
-    { id: 'quote', label: '引用块', keywords: 'quote blockquote', icon: Quote, action: (editor) => editor.chain().focus().toggleBlockquote().run() },
-    { id: 'bullet', label: '无序列表', keywords: 'bullet list ul', icon: List, action: (editor) => editor.chain().focus().toggleBulletList().run() },
-    { id: 'ordered', label: '有序列表', keywords: 'ordered list ol', icon: ListOrdered, action: (editor) => editor.chain().focus().toggleOrderedList().run() },
-    { id: 'task', label: '任务列表', keywords: 'task todo check', icon: CheckSquare, action: (editor) => editor.chain().focus().toggleTaskList().run() },
-    { id: 'code', label: '代码块', keywords: 'code block', icon: Code2, action: (editor) => editor.chain().focus().toggleCodeBlock().run() },
-    { id: 'divider', label: '分割线', keywords: 'divider hr line', icon: Minus, action: (editor) => editor.chain().focus().setHorizontalRule().run() },
+    { id: 'h1', label: 'Heading 1', keywords: 'h1 heading', icon: Heading1, action: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run() },
+    { id: 'h2', label: 'Heading 2', keywords: 'h2 heading', icon: Heading2, action: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run() },
+    { id: 'h3', label: 'Heading 3', keywords: 'h3 heading', icon: Heading3, action: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run() },
+    { id: 'quote', label: 'Quote', keywords: 'quote blockquote', icon: Quote, action: (editor) => editor.chain().focus().toggleBlockquote().run() },
+    { id: 'bullet', label: 'Bullet List', keywords: 'bullet list ul', icon: List, action: (editor) => editor.chain().focus().toggleBulletList().run() },
+    { id: 'ordered', label: 'Numbered List', keywords: 'ordered list ol', icon: ListOrdered, action: (editor) => editor.chain().focus().toggleOrderedList().run() },
+    { id: 'task', label: 'Task List', keywords: 'task todo check', icon: CheckSquare, action: (editor) => editor.chain().focus().toggleTaskList().run() },
+    { id: 'code', label: 'Code Block', keywords: 'code block', icon: Code2, action: (editor) => editor.chain().focus().toggleCodeBlock().run() },
+    { id: 'divider', label: 'Horizontal Rule', keywords: 'divider hr line', icon: Minus, action: (editor) => editor.chain().focus().setHorizontalRule().run() },
 ];
 
 /**

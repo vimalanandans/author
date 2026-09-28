@@ -6,6 +6,7 @@ import {
     getBuiltInEndpointName,
     getBuiltInNodeLabel,
     getBuiltInWorkName,
+    getBuiltInChapterTitle,
     getSettingsIconOptions,
     isBuiltInFolderLabel,
 } from '../app/lib/built-in-labels.js';
@@ -33,6 +34,14 @@ test('custom names remain unchanged', () => {
 test('default work names also translate from old localized storage', () => {
     assert.equal(getBuiltInWorkName('Default Work', pick('ru')), 'Работа по умолчанию');
     assert.equal(getBuiltInWorkName('Новое произведение', pick('zh')), '新作品');
+});
+
+test('generated Chinese chapter and volume titles display in the active language', () => {
+    assert.equal(getBuiltInChapterTitle('第一章', pick('en')), 'Chapter 1');
+    assert.equal(getBuiltInChapterTitle('第12章', pick('en')), 'Chapter 12');
+    assert.equal(getBuiltInChapterTitle('第三卷', pick('en')), 'Volume 3');
+    assert.equal(getBuiltInChapterTitle('Chapter 1', pick('en')), 'Chapter 1');
+    assert.equal(getBuiltInChapterTitle('第一章：A user title', pick('en')), '第一章：A user title');
 });
 
 test('node display translates built-in containers while preserving entry names and stored data', () => {

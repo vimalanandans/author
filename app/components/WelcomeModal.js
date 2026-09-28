@@ -62,7 +62,7 @@ export default function WelcomeModal() {
                 {/* Step 1: Language */}
                 {step === 1 && (
                     <div className="welcome-step fadeIn">
-                        <h1 className="welcome-title">Welcome / 欢迎 / Добро пожаловать</h1>
+                        <h1 className="welcome-title">Welcome</h1>
                         <div className="welcome-lang-grid">
                             <button className="welcome-card" onClick={() => handleSelectLang('en')}>
                                 <span className="welcome-icon">🇬🇧</span>

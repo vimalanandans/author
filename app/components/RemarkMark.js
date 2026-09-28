@@ -4,7 +4,7 @@ import { Mark, mergeAttributes } from '@tiptap/core';
 import { createRemarkId } from '../lib/remark-actions';
 
 function remarkText(zh, en, ru = en) {
-    const lang = typeof window !== 'undefined' ? localStorage.getItem('author-lang') : 'zh';
+    const lang = typeof window !== 'undefined' ? localStorage.getItem('author-lang') || 'en' : 'en';
     if (lang === 'en') return en;
     if (lang === 'ru') return ru;
     return zh;

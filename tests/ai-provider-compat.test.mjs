@@ -5,6 +5,7 @@ import {
     migrateApiConfigToCompatible,
     resolveAiEndpoint,
 } from '../app/lib/ai-provider-compat.js';
+import { GEMINI_NATIVE_BASE_URL, OLLAMA_DEFAULT_BASE_URL } from '../app/lib/ai-provider-defaults.js';
 
 test('DeepSeek preset overrides a stale Claude providerType', () => {
     assert.equal(resolveAiEndpoint({
@@ -31,6 +32,12 @@ test('real Claude and explicit Anthropic-compatible configurations keep the Clau
 
 test('Gemini native configuration keeps its dedicated route', () => {
     assert.equal(resolveAiEndpoint({ provider: 'gemini-native' }), '/api/ai/gemini');
+});
+
+test('Ollama uses its native generation route and documented defaults', () => {
+    assert.equal(resolveAiEndpoint({ provider: 'ollama' }), '/api/ai/ollama');
+    assert.equal(OLLAMA_DEFAULT_BASE_URL, 'http://127.0.0.1:11434');
+    assert.equal(GEMINI_NATIVE_BASE_URL, 'https://generativelanguage.googleapis.com/v1beta/');
 });
 
 test('migration repairs stale DeepSeek protocol metadata at both levels', () => {

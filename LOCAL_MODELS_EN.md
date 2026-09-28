@@ -27,7 +27,7 @@ Local models run on your own computer or NAS. They cost nothing to use, and your
 
 ## Step 1: Allow LAN access (Docker / source deployments)
 
-To stop public instances from being used to probe internal networks, Docker and source deployments block loopback and LAN addresses by default and show "服务端默认禁止访问本机或内网地址" (the server blocks loopback/LAN addresses by default). For a deployment only you or people you trust use, turn it on as follows.
+To stop public instances from being used to probe internal networks, Docker and source deployments block loopback and LAN addresses by default and show “The server blocks loopback/LAN addresses by default.” For a deployment only you or people you trust use, turn it on as follows.
 
 > ⚠️ Once enabled, anyone who can open this Author page can make it reach your LAN. Do not enable it on an instance reachable from the internet.
 
@@ -83,12 +83,12 @@ Set the environment variable `OLLAMA_HOST` to `0.0.0.0`, then restart Ollama:
 
 ## Step 3: Configure Author
 
-Open ⚙️ (bottom-left) → **API Config**, choose **Custom compatible endpoint** as the provider, and fill in:
+Open ⚙️ (bottom-left) → **API Config**. Choose **Ollama** for an Ollama server, or **Custom compatible endpoint** for LM Studio and other OpenAI-compatible servers.
 
 | Field | Value |
 |---|---|
-| API address | See the table below. It must end with `/v1`; do not append `/chat/completions` |
-| API Key | Local models usually need none, but the field cannot be empty, so enter any placeholder such as `local`. If LM Studio has Require Authentication on, use its token |
+| API address | Ollama: use the server root, such as `http://127.0.0.1:11434`. Other OpenAI-compatible servers: use the `/v1` root; do not append `/chat/completions` |
+| API Key | Ollama does not need one unless its remote proxy requires authentication. Other local servers may require a placeholder such as `local`, or their configured token |
 | Model | Use **Fetch model list from API**, or type it: for Ollama, the name shown by `ollama list` (e.g. `qwen3:8b`); for LM Studio, the model identifier it shows |
 
 Then click **Test Connection**.
@@ -97,7 +97,7 @@ Then click **Test Connection**.
 
 | Where Author runs | Where the model runs | API address |
 |---|---|---|
-| Desktop app or source deployment | Same computer | `http://127.0.0.1:PORT/v1` |
+| Desktop app or source deployment | Same computer | Ollama: `http://127.0.0.1:11434`; other compatible servers: `http://127.0.0.1:PORT/v1` |
 | Any | Another computer on the LAN | That computer's LAN IP, e.g. `http://192.168.1.20:1234/v1` |
 | Docker (NAS or Linux server) | Same machine, installed directly (not in Docker) | This machine's LAN IP, e.g. `http://192.168.1.10:11434/v1`. Or add `extra_hosts: ["host.docker.internal:host-gateway"]` to Author in the compose file and use `http://host.docker.internal:11434/v1` |
 | Docker Desktop (Windows / Mac) | Same computer, installed directly | `http://host.docker.internal:PORT/v1`. Docker Desktop provides this address out of the box |
@@ -141,7 +141,7 @@ volumes:
   ollama:
 ```
 
-After starting, download a model with `docker compose exec ollama ollama pull qwen3:8b`. In Author, set the API address to `http://ollama:11434/v1`, the model to `qwen3:8b`, and any placeholder API key.
+After starting, download a model with `docker compose exec ollama ollama pull qwen3:8b`. In Author, choose **Ollama**, set the API address to `http://ollama:11434`, fetch the model list, and select `qwen3:8b`. No API key is needed.
 
 **Can LM Studio run on a NAS?** LM Studio has a headless server edition (llmster) that installs on Linux, but there is no official Docker image. NAS systems such as Synology DSM are not standard Linux, so installing it is awkward. Ollama is the better fit for a NAS.
 
@@ -183,7 +183,7 @@ With many settings, Author can use an embedding model to pick the settings most 
 
 | Message | Cause | Fix |
 |---|---|---|
-| 服务端默认禁止访问本机或内网地址 (loopback/LAN addresses blocked) | [Step 1](#step-1-allow-lan-access-docker--source-deployments) has not taken effect | Check the variable name and that the value is `1`; make sure you recreated the container (`docker compose up -d`, not `restart`); make sure Author is up to date |
+| The server blocks loopback/LAN addresses by default | [Step 1](#step-1-allow-lan-access-docker--source-deployments) has not taken effect | Check the variable name and that the value is `1`; make sure you recreated the container (`docker compose up -d`, not `restart`); make sure Author is up to date |
 | Network connection failed. Please check that the API address is correct. | Author cannot reach the model | Check in order: the address is not a `localhost` that doesn't work inside a container; IP and port are correct; the model server is running and accepts other devices ([Step 2](#step-2-let-the-model-server-accept-other-devices)); the firewall allows it; the model address opens from another device (see the end of Step 2) |
 | Please configure your API Key first. | API Key is empty | Enter any placeholder such as `local` |
 | Please enter the OpenAI-compatible endpoint address | API address is empty | Fill it in as in [Step 3](#filling-in-the-api-address) |

@@ -52,7 +52,7 @@ export function migrateFromLegacy(legacyChatHistory) {
  */
 function autoTitle(messages) {
     const first = messages.find(m => m.role === 'user');
-    if (!first) return '新对话';
+    if (!first) return 'New Chat';
     const text = first.content.slice(0, 30);
     return text.length < first.content.length ? text + '…' : text;
 }
@@ -64,7 +64,7 @@ function autoTitle(messages) {
  */
 export function createSession(store, initial = {}) {
     const session = {
-        id: generateId(), title: '新对话', createdAt: Date.now(),
+        id: generateId(), title: 'New Chat', createdAt: Date.now(),
         updatedAt: Date.now(), messages: [],
         ...initial,
     };

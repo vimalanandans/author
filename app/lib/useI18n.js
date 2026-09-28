@@ -20,7 +20,7 @@ function readPath(lang, keys) {
 }
 
 export function useI18n() {
-    const storedLanguage = useAppStore(state => state.language) || 'zh';
+    const storedLanguage = useAppStore(state => state.language) || 'en';
     const [hydrated, setHydrated] = useState(false);
     useEffect(() => {
         setHydrated(true);
@@ -28,7 +28,7 @@ export function useI18n() {
 
     // Keep the server render and the first client render identical; then apply
     // the user's persisted language after hydration.
-    const language = hydrated ? storedLanguage : 'zh';
+    const language = hydrated ? storedLanguage : 'en';
 
     // t / text 用 useCallback 固定引用（仅随 language 变化），
     // 否则每次渲染都是新函数，会让依赖它们的 useMemo/useEffect 失效甚至无限循环。

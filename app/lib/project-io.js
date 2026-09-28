@@ -12,6 +12,9 @@ import { getChapters } from './storage';
 import { apiPath } from './api-base';
 
 const PROJECT_FILE_VERSION = 2;
+const PROJECT_FILE_BINDING_KEY = 'author-project-file-binding';
+let autoSaveTimer = null;
+let autoSaveSuppressed = 0;
 
 // 旧版导入兼容：这些 key 可能存在于历史项目存档中。
 const IMPORT_COMPAT_LOCAL_KEYS = {
@@ -52,9 +55,8 @@ function sanitizeProjectSettingsForExport(settings) {
 /**
  * 导出整个项目为 JSON 文件并下载
  */
-export async function exportProject() {
-    if (typeof window === 'undefined') return;
-
+export async function buildProjectExportData() {
+    if (typeof window === 'undefined') return null;
     const data = {
         _version: PROJECT_FILE_VERSION,
         _exportedAt: new Date().toISOString(),
@@ -110,16 +112,112 @@ export async function exportProject() {
     data.perWorkInspirations = perWorkInspirations;
     data.perWorkTimelineEvents = perWorkTimelineEvents;
 
-    // 生成文件名
+    return data;
+}
+
+export function getProjectFileName() {
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-    const fileName = `Author_存档_${dateStr}.json`;
+    return `Author_Project_${dateStr}.json`;
+}
 
-    // 下载
+async function getProjectFileBinding() {
+    return await persistGet(PROJECT_FILE_BINDING_KEY) || null;
+}
+
+async function setProjectFileBinding(binding) {
+    await persistSet(PROJECT_FILE_BINDING_KEY, binding);
+}
+
+async function writeProjectToBinding(binding, jsonStr, suggestedName, saveAs = false) {
+    if (binding?.kind === 'electron' && window.electronAPI?.saveProjectFile) {
+        const result = await window.electronAPI.saveProjectFile({ content: jsonStr, path: binding.path, suggestedName, saveAs });
+        if (result?.success) await setProjectFileBinding({ kind: 'electron', path: result.path, name: result.name });
+        return result;
+    }
+    if (binding?.kind === 'file-system-access' && binding.handle) {
+        try {
+            const permission = await binding.handle.queryPermission({ mode: 'readwrite' });
+            if (permission !== 'granted') return { success: false, needsPermission: true };
+            const writable = await binding.handle.createWritable();
+            await writable.write(jsonStr);
+            await writable.close();
+            return { success: true, name: binding.name || suggestedName };
+        } catch (error) {
+            return { success: false, error: error?.message || 'Unable to save the project file.' };
+        }
+    }
+    return { success: false, needsSaveAs: true };
+}
+
+async function chooseProjectFile(jsonStr, suggestedName) {
+    if (window.electronAPI?.saveProjectFile) {
+        const result = await window.electronAPI.saveProjectFile({ content: jsonStr, suggestedName, saveAs: true });
+        if (result?.success) await setProjectFileBinding({ kind: 'electron', path: result.path, name: result.name });
+        return result;
+    }
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName,
+                types: [{ description: 'Author Project', accept: { 'application/json': ['.json'] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(jsonStr);
+            await writable.close();
+            await setProjectFileBinding({ kind: 'file-system-access', handle, name: handle.name });
+            return { success: true, name: handle.name };
+        } catch (error) {
+            if (error?.name === 'AbortError') return { canceled: true };
+            return { success: false, error: error?.message || 'Unable to save the project file.' };
+        }
+    }
+    await downloadFile(jsonStr, suggestedName, 'application/json');
+    return { success: true, downloaded: true, name: suggestedName };
+}
+
+/** Save the current project to its bound file, or choose a project file first. */
+export async function saveProjectFile({ saveAs = false } = {}) {
+    if (typeof window === 'undefined') return { success: false, error: 'This environment does not support project files.' };
+    const data = await buildProjectExportData();
+    const jsonStr = JSON.stringify(data, null, 2);
+    const suggestedName = getProjectFileName();
+    if (!saveAs) {
+        const binding = await getProjectFileBinding();
+        if (binding) {
+            const result = await writeProjectToBinding(binding, jsonStr, suggestedName);
+            // Do not open a picker during background saves. A browser may revoke
+            // a persisted handle's write permission; the author can explicitly
+            // choose Save As to grant a new handle.
+            if (result?.success || result?.canceled || result?.needsPermission || result?.error) return result;
+        }
+    }
+    return await chooseProjectFile(jsonStr, suggestedName);
+}
+
+/** Legacy export remains a one-off downloadable backup. */
+export async function exportProject() {
+    const data = await buildProjectExportData();
+    if (!data) return;
+    const fileName = getProjectFileName();
+
     const jsonStr = JSON.stringify(data, null, 2);
     await downloadFile(jsonStr, fileName, 'application/json');
 
     return fileName;
+}
+
+export function scheduleProjectAutoSave() {
+    if (typeof window === 'undefined' || autoSaveSuppressed > 0) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(async () => {
+        const binding = await getProjectFileBinding();
+        if (!binding) return;
+        const result = await saveProjectFile();
+        if (!result?.success && !result?.canceled && !result?.needsPermission) {
+            console.warn('Project auto-save failed:', result?.error || 'unknown error');
+        }
+    }, 1200);
 }
 
 /**
@@ -132,11 +230,21 @@ export async function importProject(file) {
 
     try {
         const text = await file.text();
+        return await importProjectText(text);
+    } catch (err) {
+        return { success: false, message: `Import failed: ${err.message}` };
+    }
+}
+
+export async function importProjectText(text) {
+    if (typeof window === 'undefined') return { success: false, message: 'This environment does not support project files.' };
+    autoSaveSuppressed += 1;
+    try {
         const data = JSON.parse(text);
 
         // 基本校验
         if (!data._app || data._app !== 'Author') {
-            return { success: false, message: '文件格式不正确，不是 Author 存档文件' };
+            return { success: false, message: 'This is not a valid Author project file.' };
         }
 
         const isV2 = data._version >= 2;
@@ -226,10 +334,35 @@ export async function importProject(file) {
 
         return {
             success: true,
-            message: `成功导入存档（导出时间：${data._exportedAt || '未知'}）${ignoredLegacyApiConfig ? '；出于安全考虑，旧存档中的 API 地址和密钥配置未导入' : ''}`,
+            message: `Project imported (exported: ${data._exportedAt || 'unknown'})${ignoredLegacyApiConfig ? '. API endpoints and keys from legacy projects were not imported for security.' : ''}`,
         };
     } catch (err) {
-        return { success: false, message: `导入失败：${err.message}` };
+        return { success: false, message: `Import failed: ${err.message}` };
+    } finally {
+        autoSaveSuppressed = Math.max(0, autoSaveSuppressed - 1);
+    }
+}
+
+export async function openProjectFile() {
+    if (typeof window === 'undefined') return { success: false, message: 'This environment does not support project files.' };
+    if (window.electronAPI?.openProjectFile) {
+        const opened = await window.electronAPI.openProjectFile();
+        if (opened?.canceled) return { success: false, canceled: true };
+        if (!opened?.success) return { success: false, message: opened?.error || 'Unable to open the project file.' };
+        const imported = await importProjectText(opened.content);
+        if (imported.success) await setProjectFileBinding({ kind: 'electron', path: opened.path, name: opened.name });
+        return imported;
+    }
+    if (!window.showOpenFilePicker) return { success: false, needsFileInput: true };
+    try {
+        const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Author Project', accept: { 'application/json': ['.json'] } }], multiple: false });
+        const file = await handle.getFile();
+        const imported = await importProjectText(await file.text());
+        if (imported.success) await setProjectFileBinding({ kind: 'file-system-access', handle, name: handle.name });
+        return imported;
+    } catch (error) {
+        if (error?.name === 'AbortError') return { success: false, canceled: true };
+        return { success: false, message: error?.message || 'Unable to open the project file.' };
     }
 }
 
@@ -619,7 +752,7 @@ function normalizeExportOptions(options = {}) {
 }
 
 function exportBaseName(fileName, options = {}) {
-    const base = fileName || '导出作品';
+    const base = fileName || 'Exported Work';
     return normalizeExportOptions(options).includeRemarks ? `${base}-批注版` : base;
 }
 
@@ -856,7 +989,7 @@ export async function exportWorkAsTxt(chapters, fileName, options = {}) {
 export async function exportWorkAsMarkdown(chapters, fileName, options = {}) {
     if (!chapters || chapters.length === 0) return;
     const md = chapters.map(ch => {
-        const title = ch.title || '未命名章节';
+        const title = ch.title || 'Untitled Chapter';
         const content = htmlToText(ch.content, options);
         // 每段前添加两个全角空格作为段落缩进
         const indented = content.split(/\n\n+/).map(p => {
@@ -952,7 +1085,7 @@ export async function exportWorkAsDocx(chapters, fileName, options = {}) {
         }
         // 章节标题
         children.push(new Paragraph({
-            text: ch.title || '未命名章节',
+            text: ch.title || 'Untitled Chapter',
             heading: HeadingLevel.HEADING_1,
             spacing: { after: 200 },
         }));

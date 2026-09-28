@@ -418,6 +418,12 @@
         "toastNetworkError": "网络连接失败",
         "dialogueUser": "用户",
         "dialogueHistory": "对话历史",
+        "splitNeedsContent": "请把光标放在正文中间，拆分点前后都需要有内容",
+        "splitSuccess": "已拆分为「{first}」和「{second}」",
+        "mergeNoNextChapter": "当前章节后面没有可合并的章节",
+        "mergeSuccess": "已将「{title}」合并到当前章节",
+        "specialChapterEnabled": "「{title}」已设为特殊章节，重排编号时会跳过",
+        "specialChapterDisabled": "「{title}」已恢复普通章节",
         "autoSnapshot": "系统自动存档",
         "autoSnapshotFail": "自动存档失败:",
         "firstChapterTitle": "第一章"

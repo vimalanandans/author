@@ -6,7 +6,7 @@ const OFFICIAL_WEB = process.env.NEXT_PUBLIC_DEPLOYMENT_TARGET === 'official-web
 const BLOCKED_HOST_SUFFIXES = ['.localhost', '.local', '.internal', '.home.arpa'];
 
 export class OutboundRequestBlockedError extends Error {
-    constructor(message = '官网服务端只允许连接公网 HTTP(S) 地址') {
+    constructor(message = 'This deployment can only connect to public HTTP(S) addresses.') {
         super(message);
         this.name = 'OutboundRequestBlockedError';
         this.code = 'OUTBOUND_REQUEST_BLOCKED';
@@ -33,8 +33,8 @@ export function isPrivateNetworkAllowedByDeployment() {
 }
 
 const PRIVATE_NETWORK_BLOCKED_MESSAGE = OFFICIAL_WEB
-    ? '服务端默认禁止访问本机或内网地址'
-    : '服务端默认禁止访问本机或内网地址；自部署需连接本地模型时，请设置环境变量 AUTHOR_ALLOW_PRIVATE_NETWORK=1 后重启';
+    ? 'This deployment cannot access local or private-network addresses.'
+    : 'Local and private-network addresses are disabled by default. To connect a self-hosted app to a local model, set AUTHOR_ALLOW_PRIVATE_NETWORK=1 and restart the server.';
 
 function constantTimeEqual(left, right) {
     const a = Buffer.from(String(left || ''), 'utf8');

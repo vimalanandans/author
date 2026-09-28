@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createGenerationLifecycle, generationAbortResponse } from '../app/lib/ai-request-lifecycle.js';
-import { readSseData, readAiEvents, streamAiResponse, createOpenAiMapper, createClaudeMapper, createGeminiMapper } from '../app/lib/ai-stream.js';
+import { readSseData, readAiEvents, streamAiResponse, streamJsonLinesAiResponse, createOpenAiMapper, createClaudeMapper, createGeminiMapper, createOllamaMapper } from '../app/lib/ai-stream.js';
 
 const encode = value => new TextEncoder().encode(value);
 const sse = value => `data: ${typeof value === 'string' ? value : JSON.stringify(value)}\n\n`;
@@ -173,6 +173,8 @@ for (const [provider, mapper, textEvent, success, limited] of [
         [{ type: 'message_delta', delta: { stop_reason: 'max_tokens' } }, { type: 'message_stop' }]],
     ['Gemini', createGeminiMapper, { candidates: [{ content: { parts: [{ text: '正文' }] } }] },
         [{ candidates: [{ finishReason: 'STOP' }] }], [{ candidates: [{ finishReason: 'MAX_TOKENS' }] }]],
+    ['Ollama', createOllamaMapper, { message: { content: '正文' } },
+        [{ done: true, done_reason: 'stop', prompt_eval_count: 8, eval_count: 3 }], [{ done: true, done_reason: 'length' }]],
 ]) {
     test(`${provider} recognizes its native terminal event`, async () => {
         const events = await collect(readAiEvents(forward([textEvent, ...success].map(sse).join(''), mapper())));
@@ -187,3 +189,11 @@ for (const [provider, mapper, textEvent, success, limited] of [
         }
     });
 }
+
+test('Ollama NDJSON is converted to the application SSE protocol', async () => {
+    const upstream = new Response('{"message":{"content":"Hello"}}\n{"message":{"content":" world"},"done":true,"done_reason":"stop"}\n');
+    const result = await streamJsonLinesAiResponse(upstream, createGenerationLifecycle(), createOllamaMapper()).text();
+    assert.match(result, /"text":"Hello"/);
+    assert.match(result, /"text":" world"/);
+    assert.match(result, /data: \[DONE\]/);
+});

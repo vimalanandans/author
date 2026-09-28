@@ -130,7 +130,7 @@ function languageTag(language) {
 }
 
 function voiceStorageKey(language) {
-    return VOICE_STORAGE_KEY_PREFIX + (language || 'zh');
+    return VOICE_STORAGE_KEY_PREFIX + (language || 'en');
 }
 
 function secureStorageKey(provider) {

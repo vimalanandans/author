@@ -6,7 +6,7 @@
  */
 export function promptInput(message, defaultValue = '') {
     return new Promise((resolve) => {
-        const lang = localStorage.getItem('author-lang') || 'zh';
+        const lang = localStorage.getItem('author-lang') || 'en';
         const pickText = (zh, en, ru = en) => {
             if (lang === 'en') return en;
             if (lang === 'ru') return ru;

@@ -1221,7 +1221,7 @@ export default function AiSidebar({ onInsertText }) {
             const apiEndpoint = resolveAiEndpoint(apiConfig);
 
             const context = await buildContext(activeChapterId, text, contextSelection, targetWorkId, inputTokenBudget);
-            const systemPrompt = compileSystemPrompt(context, 'chat');
+            const systemPrompt = compileSystemPrompt(context, 'chat', { language });
             const historyForApi = selectedHistory.map(m => `${m.role === 'user' ? t('aiSidebar.roleYou') : t('aiSidebar.roleAi')}: ${m.content}`).join('\n');
             const requestText = settingsGeneration
                 ? buildSettingsGenerationRequest(text, settingsGeneration.targets || [], tx)
@@ -1326,7 +1326,7 @@ export default function AiSidebar({ onInsertText }) {
             abortRef.current = null;
             setChatStreaming(false);
         }
-    }, [activeChapterId, contextSelection, ensureActiveSessionForWork, inputTokenBudget, streamResponse, setSessionStore, setChatStreaming, t, tx]);
+    }, [activeChapterId, contextSelection, ensureActiveSessionForWork, inputTokenBudget, language, streamResponse, setSessionStore, setChatStreaming, t, tx]);
 
     const onRegenerate = useCallback(async (aiMsgId) => {
         if (chatStreaming) return;
@@ -1355,7 +1355,7 @@ export default function AiSidebar({ onInsertText }) {
             const apiEndpoint = resolveAiEndpoint(apiConfig);
 
             const context = await buildContext(activeChapterId, userMsg.content, contextSelection, targetWorkId, inputTokenBudget);
-            const systemPrompt = compileSystemPrompt(context, 'chat');
+            const systemPrompt = compileSystemPrompt(context, 'chat', { language });
             const historyForApi = priorHistory
                 .filter(m => (m.role === 'user' || m.role === 'assistant') && contextSelection?.has(getDialogueSelectionId(m.id)))
                 .map(m => `${m.role === 'user' ? t('aiSidebar.roleYou') : t('aiSidebar.roleAi')}: ${m.content}`).join('\n');
@@ -1456,7 +1456,7 @@ export default function AiSidebar({ onInsertText }) {
             abortRef.current = null;
             setChatStreaming(false);
         }
-    }, [activeSession, sessionStore, chatHistory, chatStreaming, activeChapterId, contextSelection, inputTokenBudget, streamResponse, setSessionStore, setChatStreaming, t, tx]);
+    }, [activeSession, sessionStore, chatHistory, chatStreaming, activeChapterId, contextSelection, inputTokenBudget, language, streamResponse, setSessionStore, setChatStreaming, t, tx]);
 
     const setSettingsActionCardState = useCallback((actionKey, { applied, undoRecord = null }) => {
         const msgIdFromKey = actionKey.split('-action-')[0].replace(/-v\d+$/, '');

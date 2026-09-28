@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { proxyFetch } from '../../../lib/proxy-fetch';
 import { rotateKey } from '../../../lib/keyRotator';
 import { isOutboundRequestBlocked, safeUpstreamDetail } from '../../../lib/server-security.mjs';
+import { GEMINI_NATIVE_BASE_URL } from '../../../lib/ai-provider-defaults.js';
 
 // 通用模型列表拉取 — OpenAI 兼容 / Claude 兼容 / Gemini 原生
 async function handlePOST(request) {
@@ -11,7 +12,7 @@ async function handlePOST(request) {
         apiKey = rotateKey(apiKey);
 
         // allowKeyless：本地无鉴权服务（如 Ollama）拉取模型列表时不强制要求 Key
-        if (!apiKey && !allowKeyless) {
+        if (!apiKey && !allowKeyless && provider !== 'ollama') {
             return NextResponse.json(
                 { error: '请先填入 API Key', code: 'NO_API_KEY' },
                 { status: 400 }
@@ -21,6 +22,10 @@ async function handlePOST(request) {
         // Gemini 原生格式
         if (provider === 'gemini-native') {
             return await fetchGeminiModels(apiKey, baseUrl, embedOnly, proxyUrl);
+        }
+
+        if (provider === 'ollama') {
+            return await fetchOllamaModels(apiKey, baseUrl, proxyUrl);
         }
 
         // Claude 兼容格式
@@ -41,6 +46,28 @@ async function handlePOST(request) {
             { status: 500 }
         );
     }
+}
+
+async function fetchOllamaModels(apiKey, baseUrl, proxyUrl) {
+    const base = String(baseUrl || '').trim().replace(/\/+$/, '');
+    if (!base) {
+        return NextResponse.json({ error: 'Enter an Ollama server URL first.', code: 'NO_BASE_URL_OLLAMA' }, { status: 400 });
+    }
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    const response = await proxyFetch(`${base}/api/tags`, { method: 'GET', headers }, proxyUrl);
+    if (!response.ok) return handleFetchError(response);
+    const data = await response.json();
+    const models = (Array.isArray(data?.models) ? data.models : [])
+        .map(model => {
+            const id = String(model?.name || model?.model || '').trim();
+            const size = model?.details?.parameter_size;
+            const quantization = model?.details?.quantization_level;
+            return { id, displayName: [id, size, quantization].filter(Boolean).join(' · ') };
+        })
+        .filter(model => model.id)
+        .sort((a, b) => a.id.localeCompare(b.id));
+    return NextResponse.json({ models });
 }
 
 // 从不同格式的响应中提取模型数组
@@ -271,7 +298,7 @@ async function fetchClaudeModels(apiKey, baseUrl, proxyUrl) {
 
 // Gemini 原生格式模型列表 — 分页拉取（不内置官方默认地址，baseUrl 必填）
 async function fetchGeminiModels(apiKey, baseUrl, embedOnly, proxyUrl) {
-    const base = String(baseUrl || '').trim().replace(/\/+$/, '');
+    const base = String(baseUrl || GEMINI_NATIVE_BASE_URL).trim().replace(/\/+$/, '');
     if (!base) {
         return NextResponse.json({ error: '请先填写 Gemini 原生 API 地址（通常以 /v1beta 结尾）', code: 'NO_BASE_URL_GEMINI' }, { status: 400 });
     }

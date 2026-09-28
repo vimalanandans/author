@@ -48,4 +48,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCloudSessionTokens: () => ipcRenderer.sendSync('cloud-session-tokens-get'),
     setCloudSessionTokens: (value) => ipcRenderer.sendSync('cloud-session-tokens-set', value),
     deleteCloudSessionTokens: () => ipcRenderer.sendSync('cloud-session-tokens-delete'),
+    // ---- Project files ----
+    // The renderer supplies only document contents and an optional previously chosen
+    // path. Native dialogs and filesystem access stay in the trusted main process.
+    openProjectFile: () => ipcRenderer.invoke('project-file-open'),
+    saveProjectFile: (payload) => ipcRenderer.invoke('project-file-save', payload),
 });

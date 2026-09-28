@@ -44,7 +44,7 @@ import { localizeApiError } from '../lib/api-error-i18n';
 import { apiPath } from '../lib/api-base';
 import { testAiConnection } from '../lib/ai-direct';
 import { getEmbeddingProviderConfig } from '../lib/embedding-provider-config';
-import { getBuiltInEndpointName } from '../lib/built-in-labels';
+import { getBuiltInEndpointName, getBuiltInFolderLabel } from '../lib/built-in-labels';
 import SettingsItemEditor from './SettingsItemEditor';
 import { getModeRolePrompt } from '../lib/context-engine';
 import { downloadFile, downloadBlob } from '../lib/project-io';
@@ -58,6 +58,7 @@ import {
 } from '../lib/settings-io';
 import SettingsConflictModal from './SettingsConflictModal';
 import { DEFAULT_WRITING_FONT_FAMILY, WRITING_FONT_FAMILIES } from '../lib/typography';
+import { GEMINI_NATIVE_BASE_URL, OLLAMA_DEFAULT_BASE_URL } from '../lib/ai-provider-defaults';
 
 // 分类图标映射（Lucide）
 const CAT_ICONS = {
@@ -260,7 +261,9 @@ export default function SettingsPanel() {
             category: `custom__${rf.id}`,
             realCategory: rf.category,
             count: countDescendants(rf.id),
-            label: rf.name || rf.category,
+            // Stored built-in folder names may be legacy Chinese labels. Always
+            // render them through the active locale, including rename inputs.
+            label: getBuiltInFolderLabel(rf.name, text) || rf.name || categoryText(rf.category),
             customIcon: rf.icon || null,
             rootFolderId: rf.id,
             color: 'var(--cat-custom, #64748b)',
@@ -268,7 +271,7 @@ export default function SettingsPanel() {
             isCustom: true,
         }));
         return [...builtIn, ...custom];
-    }, [visibleNodes, categoryText]);
+    }, [visibleNodes, categoryText, text]);
 
     // 更换分类图标
     const handleChangeCatIcon = async (category, iconName) => {
@@ -1462,6 +1465,7 @@ function mergeFetchedAndSavedModels(fetchedModels, savedModels) {
 }
 
 const FOREIGN_COMPATIBLE_PROVIDER_KEYS = ['openai', 'claude', 'gemini', 'gemini-native', 'groq', 'mistral', 'cohere', 'together', 'perplexity', 'xai', 'cerebras', 'github', 'openrouter'];
+const KEYLESS_PROVIDER_KEYS = ['ollama'];
 
 export const PROVIDERS = [
     // === 国内供应商 ===
@@ -1481,7 +1485,7 @@ export const PROVIDERS = [
     { key: 'openai', label: 'OpenAI 兼容', baseUrl: '', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o3-mini'] },
     { key: 'claude', label: 'Claude 兼容', baseUrl: '', models: ['claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022'], apiFormat: 'anthropic' },
     { key: 'gemini', label: 'Gemini 兼容', baseUrl: '', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'] },
-    { key: 'gemini-native', label: 'Gemini 原生', baseUrl: '', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'], hint: '原生 generateContent 协议，支持 Google 搜索 grounding 与代码执行。地址通常以 /v1beta 结尾，自行填写' },
+    { key: 'gemini-native', label: 'Gemini 原生', baseUrl: GEMINI_NATIVE_BASE_URL, models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'], hint: 'Native generateContent API with Google Search grounding and code execution.' },
     { key: 'groq', label: 'Groq 兼容', baseUrl: '', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
     { key: 'mistral', label: 'Mistral 兼容', baseUrl: '', models: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'open-mistral-nemo'] },
     { key: 'cohere', label: 'Cohere 兼容', baseUrl: '', models: ['command-r-plus', 'command-r', 'command-light'] },
@@ -1490,6 +1494,8 @@ export const PROVIDERS = [
     { key: 'xai', label: 'xAI (Grok) 兼容', baseUrl: '', models: ['grok-3', 'grok-3-mini', 'grok-2'] },
     { key: 'cerebras', label: 'Cerebras 兼容', baseUrl: '', models: ['llama-3.3-70b', 'llama-3.1-8b'] },
     { key: 'github', label: 'GitHub Models 兼容', baseUrl: '', models: ['gpt-4o', 'gpt-4o-mini', 'Phi-3.5-MoE-instruct'] },
+    // === 本地与自托管 ===
+    { key: 'ollama', label: 'Ollama', baseUrl: OLLAMA_DEFAULT_BASE_URL, models: [], hint: 'Local by default. Replace the server URL to use a remote Ollama host; an API key is optional for authenticated proxies.' },
     // === 聚合/转发 ===
     { key: 'openrouter', label: 'OpenRouter 兼容', baseUrl: '', models: ['google/gemini-2.5-flash-preview', 'anthropic/claude-sonnet-4', 'openai/gpt-4o', 'deepseek/deepseek-chat-v3-0324', 'meta-llama/llama-4-maverick'] },
     // === 自定义 ===
@@ -1513,6 +1519,7 @@ const PROVIDER_LABELS = {
     claude: ['Claude 兼容', 'Claude-compatible', 'Claude-compatible'],
     gemini: ['Gemini 兼容', 'Gemini-compatible', 'Gemini-compatible'],
     'gemini-native': ['Gemini 原生', 'Gemini (Native)', 'Gemini (Native)'],
+    ollama: ['Ollama', 'Ollama', 'Ollama'],
     groq: ['Groq 兼容', 'Groq-compatible', 'Groq-compatible'],
     mistral: ['Mistral 兼容', 'Mistral-compatible', 'Mistral-compatible'],
     cohere: ['Cohere 兼容', 'Cohere-compatible', 'Cohere-compatible'],
@@ -1545,6 +1552,7 @@ function getProviderGroupLabel(group, text = (zh) => zh) {
         cn: text('🇨🇳 国内', 'CN', 'Китай'),
         global: text('国际兼容', 'International compatible', 'Международные совместимые'),
         aggregate: text('聚合兼容', 'Aggregator compatible', 'Совместимые агрегаторы'),
+        local: text('本地与自托管', 'Local & self-hosted', 'Локальные и самостоятельные'),
         custom: text('自定义', 'Custom', 'Пользовательские'),
     };
     return labels[group] || group;
@@ -2133,7 +2141,7 @@ function ApiConfigForm({ data, onChange }) {
         setFetchedModels('loading');
         try {
             const pType = instanceCfg?.providerType || data.provider;
-            const res = await fetch(apiPath('/api/ai/models'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: data.apiKey, baseUrl: data.baseUrl, provider: pType, proxyUrl: data.proxyUrl }) });
+            const res = await fetch(apiPath('/api/ai/models'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: data.apiKey, baseUrl: data.baseUrl, provider: pType, proxyUrl: data.proxyUrl, allowKeyless: KEYLESS_PROVIDER_KEYS.includes(pType) }) });
             const result = await res.json();
             if (result.error) { setFetchedModels(null); setTestStatus({ ...result, success: false }); }
             else { setFetchedModels(result.models || []); setShowModelModal(true); setModelSearch(''); }
@@ -2183,7 +2191,8 @@ function ApiConfigForm({ data, onChange }) {
     const currentProvider = PROVIDERS.find(p => p.key === data.provider) || PROVIDERS.find(p => p.key === resolvedProviderType) || PROVIDERS[7];
     const isCustom = resolvedProviderType === 'custom';
     const isForeignCompatible = FOREIGN_COMPATIBLE_PROVIDER_KEYS.includes(resolvedProviderType);
-    const requiresExplicitBaseUrl = isCustom || isForeignCompatible;
+    const isKeylessProvider = KEYLESS_PROVIDER_KEYS.includes(resolvedProviderType);
+    const requiresExplicitBaseUrl = isCustom || isForeignCompatible || isKeylessProvider;
 
     // 嵌入模型供应商
     const EMBED_EXCLUDED = ['deepseek', 'moonshot', 'siliconflow', 'claude', 'openrouter', 'groq', 'mistral', 'cohere', 'together', 'perplexity', 'xai', 'cerebras', 'github', 'stepfun', 'volcengine', 'minimax', 'yi', 'baidu'];
@@ -2314,6 +2323,7 @@ function ApiConfigForm({ data, onChange }) {
                         { group: 'cn', keys: ['zhipu', 'deepseek', 'bailian', 'volcengine', 'moonshot', 'stepfun', 'yi', 'baichuan', 'hunyuan', 'baidu', 'minimax', 'siliconflow'] },
                         { group: 'global', keys: ['openai', 'claude', 'gemini', 'gemini-native', 'groq', 'mistral', 'cohere', 'together', 'perplexity', 'xai', 'cerebras', 'github'] },
                         { group: 'aggregate', keys: ['openrouter'] },
+                        { group: 'local', keys: ['ollama'] },
                         { group: 'custom', keys: ['custom'] },
                     ].map(section => {
                         const items = section.keys
@@ -2471,7 +2481,7 @@ function ApiConfigForm({ data, onChange }) {
                     )}
 
                     {/* API Key */}
-                    <FieldInput label="API Key" value={data.apiKey} onChange={v => update('apiKey', v)} placeholder={t('apiConfig.apiKeyPlaceholder')} secret />
+                    <FieldInput label={isKeylessProvider ? text('API Key（可选）', 'API Key (optional)', 'API Key (необязательно)') : 'API Key'} value={data.apiKey} onChange={v => update('apiKey', v)} placeholder={isKeylessProvider ? text('Only needed by an authenticated remote server or proxy', 'Only needed by an authenticated remote server or proxy', 'Нужен только для защищённого удалённого сервера или прокси') : t('apiConfig.apiKeyPlaceholder')} secret />
                     {data.apiKey && <div style={{ fontSize: 11, color: 'var(--success)', marginTop: -10, marginBottom: 10 }}>{t('apiConfig.apiKeyConfigured')}</div>}
 
                     {/* 余额查询 */}
@@ -2511,7 +2521,9 @@ function ApiConfigForm({ data, onChange }) {
                         label={requiresExplicitBaseUrl ? t('apiConfig.apiAddress') : t('apiConfig.apiAddressAuto')}
                         value={data.baseUrl}
                         onChange={v => update('baseUrl', v)}
-                        placeholder={resolvedProviderType === 'claude'
+                        placeholder={resolvedProviderType === 'ollama'
+                            ? OLLAMA_DEFAULT_BASE_URL
+                            : resolvedProviderType === 'claude'
                             ? 'https://your-relay.example.com'
                             : 'https://your-relay.example.com/v1'}
                     />
@@ -2525,7 +2537,7 @@ function ApiConfigForm({ data, onChange }) {
                         </label>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <input className="modal-input" style={{ marginBottom: 0, flex: 1 }} value={data.model || ''} onChange={e => update('model', e.target.value)} placeholder={isCustom ? text('例如：gpt-4o-mini', 'e.g. gpt-4o-mini', 'например: gpt-4o-mini') : text('选择或输入模型名称', 'Select or enter a model name', 'Выберите или введите имя модели')} />
-                            {(requiresExplicitBaseUrl ? (data.apiKey && data.baseUrl) : data.apiKey) && (
+                            {(isKeylessProvider ? Boolean(data.baseUrl) : (requiresExplicitBaseUrl ? (data.apiKey && data.baseUrl) : data.apiKey)) && (
                                 <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => { if (Array.isArray(fetchedModels) && fetchedModels.length > 0) { setShowModelModal(true); setModelSearch(''); } else { handleFetchModels(); } }} disabled={fetchedModels === 'loading'}>
                                     {fetchedModels === 'loading' ? text('获取中…', 'Fetching...', 'Загрузка...') : Array.isArray(fetchedModels) && fetchedModels.length > 0 ? text(`模型列表 (${fetchedModels.length})`, `Model List (${fetchedModels.length})`, `Список моделей (${fetchedModels.length})`) : text('获取模型列表', 'Fetch Model List', 'Получить список моделей')}
                                 </button>

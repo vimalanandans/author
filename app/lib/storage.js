@@ -81,7 +81,7 @@ export async function saveChapters(chapters, workId) {
 }
 
 // 创建新章节 (Async)
-export async function createChapter(title = '未命名章节', workId) {
+export async function createChapter(title = 'Untitled Chapter', workId) {
     return enqueueChapterOperation(workId, async () => {
         const key = getStorageKey(workId);
         const chapters = await readChapters(key);
@@ -100,7 +100,7 @@ export async function createChapter(title = '未命名章节', workId) {
 }
 
 // 在指定条目后插入新章节 (Async)
-export async function insertChapterAfter(title = '未命名章节', afterId, workId) {
+export async function insertChapterAfter(title = 'Untitled Chapter', afterId, workId) {
     return enqueueChapterOperation(workId, async () => {
         const key = getStorageKey(workId);
         const chapters = await readChapters(key);
@@ -188,7 +188,7 @@ export async function deleteChapter(id, workId) {
 }
 
 // 创建分卷 (Async) — afterId: 插入到该 id 之后；null 且无分卷时插入顶部；null 且有分卷时追加末尾
-export async function createVolume(title = '第一卷', workId, afterId) {
+export async function createVolume(title = 'Volume 1', workId, afterId) {
     return enqueueChapterOperation(workId, async () => {
         const key = getStorageKey(workId);
         const chapters = await readChapters(key);
@@ -308,7 +308,7 @@ async function downloadTextFile(content, fileName) {
 // 导出为 Markdown
 export function exportToMarkdown(chapter) {
     const md = `# ${chapter.title}\n\n${chapter.content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')}`;
-    downloadTextFile(md, `${chapter.title || '未命名'}.md`);
+    downloadTextFile(md, `${chapter.title || 'Untitled Chapter'}.md`);
 }
 
 // 导出所有章节

@@ -9,9 +9,9 @@ export function detectSynopsisLanguage(...values) {
     const source = values
         .filter(value => typeof value === 'string' && value.trim())
         .join('\n');
-    if (!source) return 'zh';
+    if (!source) return 'en';
 
-    let language = 'zh';
+    let language = 'en';
     let highestScore = 0;
     for (const candidate of ['zh', 'en', 'ru', 'ar']) {
         const score = source.match(LANGUAGE_PATTERNS[candidate])?.length || 0;

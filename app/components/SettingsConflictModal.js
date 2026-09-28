@@ -31,7 +31,7 @@ const CAT_LABELS = {
  * @param {Function} onClose
  */
 export default function SettingsConflictModal({ conflicts, noConflicts, onConfirm, onClose }) {
-    const { text } = useI18n();
+    const { text, language } = useI18n();
     const fieldLabels = {
         character: { role: text('角色', 'Role', 'Роль'), gender: text('性别', 'Gender', 'Пол'), age: text('年龄', 'Age', 'Возраст'), appearance: text('外貌', 'Appearance', 'Внешность'), personality: text('性格', 'Personality', 'Характер'), background: text('背景故事', 'Backstory', 'Предыстория'), motivation: text('动机', 'Motivation', 'Мотивация'), skills: text('能力', 'Abilities', 'Способности'), speechStyle: text('说话风格', 'Speech Style', 'Стиль речи'), relationships: text('人物关系', 'Relationships', 'Отношения'), arc: text('成长弧线', 'Arc', 'Арка'), notes: text('备注', 'Notes', 'Заметки') },
         location: { description: text('描述', 'Description', 'Описание'), slugline: text('场景标题', 'Slugline', 'Сцена'), sensoryVisual: text('视觉', 'Visuals', 'Визуально'), sensoryAudio: text('听觉', 'Audio', 'Звук'), sensorySmell: text('嗅觉', 'Smell', 'Запах'), mood: text('氛围', 'Mood', 'Атмосфера'), dangerLevel: text('危险等级', 'Danger Level', 'Уровень опасности'), notes: text('备注', 'Notes', 'Заметки') },
@@ -40,14 +40,14 @@ export default function SettingsConflictModal({ conflicts, noConflicts, onConfir
         plot: { status: text('状态', 'Status', 'Статус'), description: text('描述', 'Description', 'Описание'), notes: text('备注', 'Notes', 'Заметки') },
         rules: { description: text('描述', 'Description', 'Описание'), notes: text('备注', 'Notes', 'Заметки') },
     };
-    const getCatLabel = (category) => ({
+    const getCatLabel = useCallback((category) => ({
         character: text('人物', 'Characters', 'Персонажи'),
         location: text('地点', 'Places', 'Места'),
         object: text('物品', 'Items', 'Предметы'),
         world: text('世界观', 'Worldbuilding', 'Мир'),
         plot: text('大纲', 'Outline', 'План'),
         rules: text('规则', 'Rules', 'Правила'),
-    }[category] || category);
+    }[category] || category), [text]);
     // 每个冲突的解决方式: 'existing' | 'imported' | 'merged'
     const [resolutions, setResolutions] = useState(() => {
         const init = {};
@@ -128,26 +128,36 @@ export default function SettingsConflictModal({ conflicts, noConflicts, onConfir
             const importedFields = JSON.stringify(conflict.imported.content || {}, null, 2);
             const userHint = mergeStates[index]?.prompt || '';
 
-            const systemPrompt = `你是一个设定集合并助手。用户正在导入一个设定集，其中有一个条目与已有条目重名。请将两个版本的内容智能合并，保留所有有价值的信息，不丢失任何细节。
+            const instructions = language === 'ru'
+                ? `Вы помощник по объединению настроек. Пользователь импортирует набор настроек, и запись имеет то же имя, что и существующая. Объедините версии, сохранив все ценные сведения.
+
+Правила:
+1. Объединяйте похожие значения одного поля в более полную версию.
+2. Если поле есть только в одной версии, сохраните его.
+3. При конфликте сохраняйте более подробные сведения или объединяйте их.
+4. Верните только JSON-объект без блока кода. Не изменяйте имена ключей.`
+                : language === 'zh'
+                    ? `你是一个设定集合并助手。用户正在导入一个设定集，其中有一个条目与已有条目重名。请将两个版本的内容智能合并，保留所有有价值的信息，不丢失任何细节。
 
 规则：
-1. 如果两个版本的同一字段内容相似，合并为更完整的版本
-2. 如果一个版本有某字段而另一个没有，保留有内容的版本
-3. 如果两个版本的同一字段内容冲突，以更详细的为准，或合并两者
-4. 返回纯 JSON 对象格式，不要代码块标记，key 保持原有字段名
+1. 如果两个版本的同一字段内容相似，合并为更完整的版本。
+2. 如果一个版本有某字段而另一个没有，保留有内容的版本。
+3. 如果两个版本的同一字段内容冲突，以更详细的为准，或合并两者。
+4. 返回纯 JSON 对象格式，不要代码块标记，key 保持原有字段名。`
+                    : `You are a setting-collection merge assistant. The user is importing a setting entry with the same name as an existing entry. Merge both versions while preserving all valuable details.
 
-${userHint ? `用户额外要求：${userHint}` : ''}`;
+Rules:
+1. Combine similar values for the same field into the more complete version.
+2. Keep a field when it exists in only one version.
+3. When values conflict, preserve the more detailed information or combine both when possible.
+4. Return only a JSON object with no code fence. Keep the original field keys.`;
+            const systemPrompt = `${instructions}\n\n${userHint ? text(`用户额外要求：${userHint}`, `Additional user instruction: ${userHint}`, `Дополнительное указание пользователя: ${userHint}`) : ''}`;
 
-            const userPrompt = `条目名称：${conflict.name}
-分类：${CAT_LABELS[conflict.category] || conflict.category}
-
-【已有版本】
-${existingFields}
-
-【导入版本】
-${importedFields}
-
-请合并这两个版本，返回合并后的JSON对象：`;
+            const userPrompt = text(
+                `条目名称：${conflict.name}\n分类：${getCatLabel(conflict.category)}\n\n【已有版本】\n${existingFields}\n\n【导入版本】\n${importedFields}\n\n请合并这两个版本，返回合并后的JSON对象：`,
+                `Entry name: ${conflict.name}\nCategory: ${getCatLabel(conflict.category)}\n\n[Existing version]\n${existingFields}\n\n[Imported version]\n${importedFields}\n\nMerge these versions and return the resulting JSON object:`,
+                `Название записи: ${conflict.name}\nКатегория: ${getCatLabel(conflict.category)}\n\n[Существующая версия]\n${existingFields}\n\n[Импортированная версия]\n${importedFields}\n\nОбъедините версии и верните итоговый JSON-объект:`,
+            );
 
             const res = await aiFetch(apiEndpoint, {
                 method: 'POST',
@@ -204,7 +214,7 @@ ${importedFields}
                 [index]: { ...prev[index], loading: false, error: err.message },
             }));
         }
-    }, [conflicts, mergeStates, text]);
+    }, [conflicts, getCatLabel, language, mergeStates, text]);
 
     // === 确认 ===
     const handleConfirm = () => {

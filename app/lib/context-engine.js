@@ -14,9 +14,9 @@ import { getChapterReferenceGroups } from './context-selection';
 function getRuntimeLanguage(explicitLanguage) {
     if (explicitLanguage) return explicitLanguage;
     if (typeof localStorage !== 'undefined') {
-        return localStorage.getItem('author-lang') || 'zh';
+        return localStorage.getItem('author-lang') || 'en';
     }
-    return 'zh';
+    return 'en';
 }
 
 function promptText(language, zh, en, ru = en) {
@@ -573,6 +573,11 @@ export function compileSystemPrompt(context, mode, options = {}) {
         ? settings.customPrompt.trim()
         : getModeRolePrompt(context.writingMode, language);
     stablePrefixSections.push(rolePrompt);
+    stablePrefixSections.push(tr(
+        '默认使用简体中文回复；只有在作者明确要求时才改用其他语言。',
+        'Respond in English by default. Use another language only when the author explicitly requests it.',
+        'По умолчанию отвечай на русском языке. Используй другой язык только по явной просьбе автора.'
+    ));
 
     if (context.bookInfo) {
         stablePrefixSections.push(`${tr('【作品信息】', '[Book Info]', '[Информация о произведении]')}\n${context.bookInfo}`);
@@ -1045,7 +1050,7 @@ function buildCurrentContext(chapter, chapterNumber, totalChapters) {
     return parts.join('\n');
 }
 
-function getModeInstruction(mode, language = 'zh') {
+function getModeInstruction(mode, language = 'en') {
     if (language === 'en') {
         switch (mode) {
             case 'continue':

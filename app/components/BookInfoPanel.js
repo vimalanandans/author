@@ -139,7 +139,7 @@ function FieldInput({ label, value, onChange, placeholder, multiline, rows }) {
 
 // SVG Activity Chart — 按时间窗口统计字数
 // 时=60分钟, 天=24时, 周=7天, 月=30天, 季=3月, 年=12月
-function ActivityChart({ chapters, period = 'day', text = (zh) => zh, language = 'zh' }) {
+function ActivityChart({ chapters, period = 'day', text = (zh, en) => en || zh, language = 'en' }) {
     const data = useMemo(() => {
         const now = Date.now();
         const realChapters = (chapters || [])
@@ -259,7 +259,7 @@ function ActivityChart({ chapters, period = 'day', text = (zh) => zh, language =
 }
 
 // 统计卡片 — 紧凑数字格式
-function fmtStatValue(v, language = 'zh') {
+function fmtStatValue(v, language = 'en') {
     if (typeof v === 'string') {
         const n = Number(v.replace(/,/g, ''));
         if (!isNaN(n)) v = n; else return v;

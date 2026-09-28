@@ -1,121 +1,121 @@
-# 🖥️ 连接本地模型（Ollama、LM Studio 等）
+# 🖥️ Connecting Local Models (Ollama, LM Studio, …)
 
-本地模型是指跑在你自己的电脑或 NAS 上的大模型，不用付费，内容也不会发到外面。只要模型软件提供 OpenAI 兼容接口（地址一般以 `/v1` 结尾），Author 就能连接。
+Local models run on your own computer or NAS. They cost nothing to use, and your text never leaves your network. Author can connect to any model server that offers an OpenAI-compatible API (the address usually ends with `/v1`).
 
-> **先记住一件事：** 连接模型的请求是由**运行 Author 的那台机器**发出的，不是由你正在使用的浏览器发出的。所以填地址时，要站在 Author 所在机器的角度来填。用手机或别的电脑打开 Author 也是一样。
+> **Keep one thing in mind:** requests to the model are sent by **the machine running Author**, not by the browser you are using. Always fill in addresses from the point of view of the machine Author runs on. This is also true when you open Author from a phone or another computer.
 
-## 目录
+## Contents
 
-1. [你属于哪种情况](#你属于哪种情况)
-2. [第一步：允许 Author 连接内网（Docker / 源码部署）](#第一步允许-author-连接内网docker--源码部署)
-3. [第二步：让模型软件允许别的设备连接](#第二步让模型软件允许别的设备连接)
-4. [第三步：在 Author 里填写](#第三步在-author-里填写)
-5. [把模型也装在 NAS 上](#把模型也装在-nas-上)
-6. [本地模型的使用注意](#本地模型的使用注意)
-7. [可选：用本地模型做设定检索（向量）](#可选用本地模型做设定检索向量)
-8. [按提示排查](#按提示排查)
+1. [Which case are you in](#which-case-are-you-in)
+2. [Step 1: Allow LAN access (Docker / source deployments)](#step-1-allow-lan-access-docker--source-deployments)
+3. [Step 2: Let the model server accept other devices](#step-2-let-the-model-server-accept-other-devices)
+4. [Step 3: Configure Author](#step-3-configure-author)
+5. [Running the model on the NAS too](#running-the-model-on-the-nas-too)
+6. [Things to know about local models](#things-to-know-about-local-models)
+7. [Optional: local embeddings for setting retrieval](#optional-local-embeddings-for-setting-retrieval)
+8. [Troubleshooting by message](#troubleshooting-by-message)
 
-## 你属于哪种情况
+## Which case are you in
 
-| 你怎么用 Author | 需要做什么 |
+| How you use Author | What to do |
 |---|---|
-| **桌面版**（Windows 安装包），模型在同一台电脑 | 什么都不用改，地址直接填 `http://127.0.0.1:端口/v1`，跳到[第三步](#第三步在-author-里填写) |
-| **桌面版**，模型在局域网里的另一台电脑 | 做[第二步](#第二步让模型软件允许别的设备连接)和[第三步](#第三步在-author-里填写) |
-| **Docker 部署**（NAS、电脑、服务器都算） | 三步都要做 |
-| **源码部署**（`npm run build` + `npm start`） | 三步都要做；模型在同一台机器时，地址可以直接填 `127.0.0.1` |
-| **别人部署的网页版**（包括官网） | 对方的服务器不会替你连接你家里的地址。请改用桌面版，或者自己部署 |
+| **Desktop app** (Windows installer), model on the same computer | Nothing to change. Use `http://127.0.0.1:PORT/v1` and skip to [Step 3](#step-3-configure-author) |
+| **Desktop app**, model on another computer on your LAN | [Step 2](#step-2-let-the-model-server-accept-other-devices) and [Step 3](#step-3-configure-author) |
+| **Docker** (on a NAS, PC or server) | All three steps |
+| **Source deployment** (`npm run build` + `npm start`) | All three steps. If the model runs on the same machine, you can use `127.0.0.1` directly |
+| **A web instance someone else runs** (including the official site) | That server will not connect to addresses on your home network. Use the desktop app or deploy your own instance |
 
-## 第一步：允许 Author 连接内网（Docker / 源码部署）
+## Step 1: Allow LAN access (Docker / source deployments)
 
-为了防止公开的实例被人借来探测内网，Docker 和源码部署默认不允许 Author 连接本机或局域网地址，会提示"服务端默认禁止访问本机或内网地址"。自己或信任的人使用的部署，按下面的方式打开。
+To stop public instances from being used to probe internal networks, Docker and source deployments block loopback and LAN addresses by default and show “The server blocks loopback/LAN addresses by default.” For a deployment only you or people you trust use, turn it on as follows.
 
-> ⚠️ 打开后，任何能打开这个 Author 页面的人都能让它去访问你的局域网。能从外网访问的实例不要打开。
+> ⚠️ Once enabled, anyone who can open this Author page can make it reach your LAN. Do not enable it on an instance reachable from the internet.
 
-请先把 Author 更新到最新版本，然后按你的部署方式设置环境变量 `AUTHOR_ALLOW_PRIVATE_NETWORK=1`：
+First update Author to the latest version, then set the environment variable `AUTHOR_ALLOW_PRIVATE_NETWORK=1` for your deployment:
 
-| 部署方式 | 怎么设置 |
+| Deployment | How |
 |---|---|
-| docker compose | 在 `docker-compose.yml` 同目录的 `.env` 里加一行 `AUTHOR_ALLOW_PRIVATE_NETWORK=1`，然后执行 `docker compose up -d`。只执行 `docker compose restart` 不会读取新的设置 |
-| docker run | 删掉旧容器，重新运行时加上 `-e AUTHOR_ALLOW_PRIVATE_NETWORK=1` |
-| NAS 的图形界面（群晖 Container Manager、威联通 Container Station 等） | 在容器设置的"环境变量"里新增：变量名 `AUTHOR_ALLOW_PRIVATE_NETWORK`，值 `1`，保存后重启容器 |
-| 源码部署 | 在项目目录的 `.env.local` 里加一行 `AUTHOR_ALLOW_PRIVATE_NETWORK=1`，然后重启 |
+| docker compose | Add `AUTHOR_ALLOW_PRIVATE_NETWORK=1` to the `.env` file next to `docker-compose.yml`, then run `docker compose up -d`. `docker compose restart` alone does not pick up the new setting |
+| docker run | Remove the old container and run it again with `-e AUTHOR_ALLOW_PRIVATE_NETWORK=1` |
+| NAS web UI (Synology Container Manager, QNAP Container Station, …) | In the container's environment variables, add name `AUTHOR_ALLOW_PRIVATE_NETWORK` with value `1`, save, and restart the container |
+| Source deployment | Add `AUTHOR_ALLOW_PRIVATE_NETWORK=1` to `.env.local` in the project folder, then restart |
 
-**怎么确认已经生效：** 回到 Author 再点一次"测试连接"。只要提示不再是"服务端默认禁止访问本机或内网地址"，这一步就成功了。即使出现别的错误，也说明已经过了这一关，接着看后面两步。
+**How to confirm it worked:** click **Test Connection** in Author again. As long as the message is no longer the one above, this step is done. Any other error means you are past this step, so continue with the next two.
 
-## 第二步：让模型软件允许别的设备连接
+## Step 2: Let the model server accept other devices
 
-模型软件默认只允许本机连接。只要 Author 和模型不在同一台机器上，这一步就必须做。**Docker 容器也算另一台机器**，所以 Author 用 Docker 部署时，即使模型装在同一台 NAS 或电脑上，也要做这一步。
+Model servers only accept connections from the same machine by default. Whenever Author and the model are on different machines, this step is required. **A Docker container counts as a separate machine**, so if Author runs in Docker you need this step even when the model is on the same NAS or PC.
 
-### Ollama（默认端口 11434）
+### Ollama (default port 11434)
 
-把环境变量 `OLLAMA_HOST` 设为 `0.0.0.0`，然后重启 Ollama：
+Set the environment variable `OLLAMA_HOST` to `0.0.0.0`, then restart Ollama:
 
-| 系统 | 做法 |
+| System | How |
 |---|---|
-| Windows | 先在任务栏右下角退出 Ollama；在开始菜单搜索"编辑账户的环境变量"，新建变量 `OLLAMA_HOST`，值填 `0.0.0.0`；再从开始菜单重新打开 Ollama |
-| macOS | 在终端执行 `launchctl setenv OLLAMA_HOST "0.0.0.0"`，然后退出并重新打开 Ollama |
-| Linux | 执行 `sudo systemctl edit ollama.service`，在 `[Service]` 下加一行 `Environment="OLLAMA_HOST=0.0.0.0"`，保存后执行 `sudo systemctl daemon-reload` 和 `sudo systemctl restart ollama` |
-| Docker（官方 `ollama/ollama` 镜像） | 已经默认允许，不用改 |
+| Windows | Quit Ollama from the taskbar. Search the Start menu for "Edit environment variables for your account", add `OLLAMA_HOST` with value `0.0.0.0`, then start Ollama again from the Start menu |
+| macOS | Run `launchctl setenv OLLAMA_HOST "0.0.0.0"` in Terminal, then quit and reopen Ollama |
+| Linux | Run `sudo systemctl edit ollama.service`, add `Environment="OLLAMA_HOST=0.0.0.0"` under `[Service]`, save, then run `sudo systemctl daemon-reload` and `sudo systemctl restart ollama` |
+| Docker (official `ollama/ollama` image) | Already allowed, nothing to change |
 
-### LM Studio（默认端口 1234）
+### LM Studio (default port 1234)
 
-- **桌面版**：在 Developer 页面的服务器设置里打开 **Serve on Local Network**，并确认服务器已启动。
-- **命令行 / 无界面服务器版**：用 `lms server start --bind 0.0.0.0` 启动。
-- 如果打开了 **Require Authentication**，之后在 Author 里要把 LM Studio 生成的令牌填进 API Key。
+- **Desktop app:** turn on **Serve on Local Network** in the server settings on the Developer page, and make sure the server is running.
+- **CLI / headless edition:** start the server with `lms server start --bind 0.0.0.0`.
+- If **Require Authentication** is on, you will enter the token LM Studio generated as the API Key in Author.
 
-### 其他兼容 OpenAI 接口的软件
+### Other OpenAI-compatible servers
 
-| 软件 | 默认端口 | 允许别的设备连接 |
+| Software | Default port | Accept other devices |
 |---|---|---|
-| vLLM | 8000 | 启动参数加 `--host 0.0.0.0` |
-| llama.cpp（llama-server） | 8080 | 启动参数加 `--host 0.0.0.0` |
-| Xinference | 9997 | 启动参数加 `-H 0.0.0.0` |
-| LocalAI | 8080 | 用 Docker 运行时已默认允许 |
-| 其他 | 见该软件文档 | 在设置里找"监听地址 / host / listen"，改成 `0.0.0.0` |
+| vLLM | 8000 | Add `--host 0.0.0.0` when starting |
+| llama.cpp (llama-server) | 8080 | Add `--host 0.0.0.0` when starting |
+| Xinference | 9997 | Add `-H 0.0.0.0` when starting |
+| LocalAI | 8080 | Already allowed when run with Docker |
+| Others | See their docs | Look for a "listen address / host / listen" setting and set it to `0.0.0.0` |
 
-### 别忘了防火墙
+### Don't forget the firewall
 
-- **Windows**：第一次允许局域网连接时，系统可能会弹出防火墙提示，选"允许"。如果之前点了拒绝，到"允许应用通过 Windows 防火墙"里把模型软件勾上。
-- **macOS**：如果开了防火墙，在"系统设置 → 网络 → 防火墙 → 选项"里允许模型软件接收连接。
-- **NAS**：如果开了 NAS 自带的防火墙，要放行模型使用的端口。
+- **Windows:** the first time the model server accepts LAN connections, Windows may show a firewall prompt. Choose "Allow". If you denied it earlier, allow the model server under "Allow an app through Windows Firewall".
+- **macOS:** if the firewall is on, allow the model server under System Settings → Network → Firewall → Options.
+- **NAS:** if the NAS firewall is on, open the model's port.
 
-**怎么确认这一步成功了：** 在局域网里另一台设备的浏览器打开 `http://模型所在机器的IP:端口/v1/models`，例如 `http://192.168.1.20:11434/v1/models`。能看到一段包含模型名的文字，就说明模型那边没问题。
+**How to confirm it worked:** from another device on the LAN, open `http://MODEL-MACHINE-IP:PORT/v1/models` in a browser, e.g. `http://192.168.1.20:11434/v1/models`. If you see text that includes model names, the model side is working.
 
-## 第三步：在 Author 里填写
+## Step 3: Configure Author
 
-打开左下角 ⚙️ → **API 配置**，服务商选 **自定义兼容端点**，然后填写：
+Open ⚙️ (bottom-left) → **API Config**. Choose **Ollama** for an Ollama server, or **Custom compatible endpoint** for LM Studio and other OpenAI-compatible servers.
 
-| 项目 | 怎么填 |
+| Field | Value |
 |---|---|
-| API 地址 | 见下表。结尾一定要带 `/v1`，不要再加 `/chat/completions` |
-| API Key | 本地模型一般不需要，但这一栏不能空着，随便填一个，例如 `local`。LM Studio 打开了 Require Authentication 时，填它生成的令牌 |
-| 模型名 | 点"从API拉取模型列表"选择，或者手动填：Ollama 填 `ollama list` 里显示的名字（例如 `qwen3:8b`），LM Studio 填它显示的模型标识 |
+| API address | Ollama: use the server root, such as `http://127.0.0.1:11434`. Other OpenAI-compatible servers: use the `/v1` root; do not append `/chat/completions` |
+| API Key | Ollama does not need one unless its remote proxy requires authentication. Other local servers may require a placeholder such as `local`, or their configured token |
+| Model | Use **Fetch model list from API**, or type it: for Ollama, the name shown by `ollama list` (e.g. `qwen3:8b`); for LM Studio, the model identifier it shows |
 
-填好后点 **测试连接**。
+Then click **Test Connection**.
 
-### API 地址怎么填
+### Filling in the API address
 
-| Author 在哪 | 模型在哪 | API 地址 |
+| Where Author runs | Where the model runs | API address |
 |---|---|---|
-| 桌面版或源码部署 | 同一台电脑 | `http://127.0.0.1:端口/v1` |
-| 任何方式 | 局域网里的另一台电脑 | 那台电脑的局域网 IP，例如 `http://192.168.1.20:1234/v1` |
-| Docker（NAS 或 Linux 服务器） | 同一台机器，直接安装（不在 Docker 里） | 这台机器的局域网 IP，例如 `http://192.168.1.10:11434/v1`；或者在 compose 里给 Author 加上 `extra_hosts: ["host.docker.internal:host-gateway"]`，然后填 `http://host.docker.internal:11434/v1` |
-| Docker Desktop（Windows / Mac 电脑） | 同一台电脑，直接安装 | `http://host.docker.internal:端口/v1`，Docker Desktop 自带这个地址，不用额外设置 |
-| Docker | 同一台机器的另一个容器，写在同一个 compose 里 | 服务名，例如 `http://ollama:11434/v1`（见[下一节](#把模型也装在-nas-上)） |
-| Docker | 同一台机器的另一个容器，单独运行 | 这台机器的局域网 IP 加上映射出来的端口；或者把两个容器加入同一个 Docker 网络，然后用容器名 |
-| Docker，网络模式设为 host（NAS 界面里常叫"使用与主机相同的网络"） | 同一台机器 | `http://127.0.0.1:端口/v1`，这时容器和主机共用网络，可以直接填本机地址 |
-| 任何方式 | 不在同一个局域网（比如模型在家里，Author 在云服务器上） | 用 Tailscale、ZeroTier 等组网工具时，填模型那台机器在组网里的 IP；用内网穿透或公网地址时，直接填那个地址。不要把没有密码保护的模型接口直接暴露到公网 |
+| Desktop app or source deployment | Same computer | Ollama: `http://127.0.0.1:11434`; other compatible servers: `http://127.0.0.1:PORT/v1` |
+| Any | Another computer on the LAN | That computer's LAN IP, e.g. `http://192.168.1.20:1234/v1` |
+| Docker (NAS or Linux server) | Same machine, installed directly (not in Docker) | This machine's LAN IP, e.g. `http://192.168.1.10:11434/v1`. Or add `extra_hosts: ["host.docker.internal:host-gateway"]` to Author in the compose file and use `http://host.docker.internal:11434/v1` |
+| Docker Desktop (Windows / Mac) | Same computer, installed directly | `http://host.docker.internal:PORT/v1`. Docker Desktop provides this address out of the box |
+| Docker | Another container on the same machine, in the same compose file | The service name, e.g. `http://ollama:11434/v1` (see [the next section](#running-the-model-on-the-nas-too)) |
+| Docker | Another container on the same machine, run separately | This machine's LAN IP plus the published port. Or put both containers on the same Docker network and use the container name |
+| Docker with host networking (often "use the same network as Docker Host" in NAS UIs) | Same machine | `http://127.0.0.1:PORT/v1`. The container shares the host's network, so the local address works |
+| Any | Not on the same LAN (e.g. model at home, Author on a cloud server) | With Tailscale, ZeroTier or similar, use the model machine's IP on that network. With a tunnel or public address, use that address. Never expose a model API without password protection to the internet |
 
-**注意这几点：**
+**Keep these in mind:**
 
-- 容器里的 `localhost` 和 `127.0.0.1` 指的是容器自己，不是你的 NAS 或电脑。只有上表里写了可以用的情况才能这样填。
-- **怎么查局域网 IP**：Windows 在命令提示符里运行 `ipconfig`，看"IPv4 地址"；macOS 在"系统设置 → 网络"里查看；NAS 在它的管理界面里查看；也可以到路由器后台的设备列表里找。
-- **建议固定 IP**：局域网 IP 可能在重启后变化，导致突然连不上。可以在路由器里给模型所在的机器设置固定 IP（一般叫"DHCP 静态分配"或"IP 与 MAC 绑定"）。
-- **局域网里用 `http://` 就行**：使用自签名证书的 `https://` 地址会连接失败。
+- Inside a container, `localhost` and `127.0.0.1` mean the container itself, not your NAS or PC. Only use them where the table above says so.
+- **Finding a LAN IP:** on Windows, run `ipconfig` and look for "IPv4 Address"; on macOS, see System Settings → Network; on a NAS, see its admin UI; or check the device list in your router.
+- **Use a fixed IP:** LAN IPs can change after a reboot, which suddenly breaks the connection. Reserve a fixed IP for the model machine in your router (often called "DHCP reservation" or "IP & MAC binding").
+- **Plain `http://` is fine on a LAN:** `https://` addresses with self-signed certificates will fail to connect.
 
-## 把模型也装在 NAS 上
+## Running the model on the NAS too
 
-可以，推荐用 **Ollama**。它有官方 Docker 镜像，可以和 Author 写在同一个 compose 文件里。这样 Ollama 只在 compose 内部可见，不用对局域网开放端口：
+Yes, and **Ollama** is the recommended choice. It has an official Docker image and can go in the same compose file as Author. Ollama is then only reachable inside the compose network, so no port has to be opened to the LAN:
 
 ```yaml
 services:
@@ -131,7 +131,7 @@ services:
   ollama:
     image: ollama/ollama
     environment:
-      # 可选：调大模型能接收的内容长度，内存要足够（见下文"上下文长度"）
+      # Optional: let the model take in more text; needs enough memory (see "Context length" below)
       - OLLAMA_CONTEXT_LENGTH=16384
     volumes:
       - ollama:/root/.ollama
@@ -141,56 +141,56 @@ volumes:
   ollama:
 ```
 
-启动后下载模型：`docker compose exec ollama ollama pull qwen3:8b`。然后在 Author 里填 API 地址 `http://ollama:11434/v1`，模型名 `qwen3:8b`，API Key 随便填一个。
+After starting, download a model with `docker compose exec ollama ollama pull qwen3:8b`. In Author, choose **Ollama**, set the API address to `http://ollama:11434`, fetch the model list, and select `qwen3:8b`. No API key is needed.
 
-**LM Studio 能装在 NAS 上吗？** LM Studio 有无界面的服务器版（llmster），可以装在 Linux 上，但没有官方 Docker 镜像。群晖等 NAS 系统不是标准 Linux，装起来比较麻烦，所以 NAS 上更推荐 Ollama。
+**Can LM Studio run on a NAS?** LM Studio has a headless server edition (llmster) that installs on Linux, but there is no official Docker image. NAS systems such as Synology DSM are not standard Linux, so installing it is awkward. Ollama is the better fit for a NAS.
 
-**性能要有心理准备：** 大多数 NAS 没有独立显卡，CPU 也偏弱，只适合跑几 B 参数的小模型，速度会明显比有显卡的电脑慢。如果家里有带显卡的电脑，把模型装在电脑上，让 NAS 上的 Author 去连接，通常体验更好。NAS 装了 NVIDIA 显卡时，可以参考 Ollama 官方文档给容器开启显卡加速。
+**Set your performance expectations:** most NAS devices have no dedicated GPU and a modest CPU. They can only run small models of a few billion parameters, noticeably slower than a PC with a GPU. If you have a PC with a GPU, running the model there and pointing the Author instance on the NAS at it usually works better. If your NAS has an NVIDIA GPU, see the Ollama documentation for enabling GPU acceleration in the container.
 
-## 本地模型的使用注意
+## Things to know about local models
 
-### 上下文长度（最容易踩的坑）
+### Context length (the most common pitfall)
 
-Author 每次会把勾选的设定、前文等参考内容一起发给模型，默认最多约 200k token。本地模型能接收的内容通常少得多，例如 Ollama 在显存小于 24GB 时默认只有 4k。超出的部分会被模型直接丢掉，表现为 **AI 不看设定、忘了前文、回答前后对不上**，而且不会有任何报错。
+Each request includes the settings, previous text and other references you selected, up to about 200k tokens by default. Local models usually accept far less. For example, Ollama defaults to 4k when there is less than 24 GB of VRAM. Anything beyond the limit is silently dropped by the model, so **the AI ignores your settings, forgets earlier text, or contradicts itself**, with no error shown.
 
-两边都要调：
+Adjust both sides:
 
-1. **在 Author 里调小**：打开右侧 AI 面板的 **参考** 标签，在"Token 用量"旁边的 **上限** 里填一个不超过模型上下文长度的数，例如 8000 或 16000。
-2. **让模型接收更多**（会占用更多内存或显存）：
-   - Ollama：像[第二步](#ollama默认端口-11434)设置 `OLLAMA_HOST` 那样，再设置 `OLLAMA_CONTEXT_LENGTH`，例如 `16384`，然后重启 Ollama。
-   - LM Studio：加载模型时调大 Context Length；命令行用 `lms load 模型名 --context-length 16384`。
+1. **Lower it in Author:** open the **Reference** tab in the AI panel on the right, and next to "Token Usage" set **Limit** to a number no larger than the model's context length, e.g. 8000 or 16000.
+2. **Let the model accept more** (uses more RAM or VRAM):
+   - Ollama: set `OLLAMA_CONTEXT_LENGTH` (e.g. `16384`) the same way as `OLLAMA_HOST` in [Step 2](#ollama-default-port-11434), then restart Ollama.
+   - LM Studio: raise Context Length when loading the model; on the CLI, use `lms load MODEL --context-length 16384`.
 
-### 生成时间
+### Generation time
 
-只要模型还在输出，写多久都不会被打断。模型连续 2 分钟没有任何输出时，才会提示"生成超时，内容尚未完成，请重试。"，已经写出的内容会保留。
+As long as the model keeps producing output, a generation is never cut off, however long it takes. Only when the model produces nothing for 2 minutes straight do you see "Generation timed out and is incomplete. Please retry.", and the text written so far is kept.
 
-最容易超时的是**开始输出之前**那段时间：模型要先读完发给它的全部内容才会开始写，内容越多、机器越慢，等得越久。如果经常在一个字都没出来时就超时（例如只用 CPU 的 NAS）：
+The wait is longest **before the first word appears**: the model has to read everything sent to it before it starts writing, so more text and a slower machine mean a longer wait. If it often times out before any text appears (e.g. on a CPU-only NAS):
 
-- 按[上下文长度](#上下文长度最容易踩的坑)的方法调小 Author 里的上限，让模型要读的内容少一些；
-- 换一个更小的模型；
-- 第一次请求要先把模型读进内存，会比较慢；如果第一次超时，再试一次。
+- Lower the limit in Author as described under [Context length](#context-length-the-most-common-pitfall), so the model has less to read.
+- Switch to a smaller model.
+- The first request has to load the model into memory and is slower. If it times out the first time, try again.
 
-## 可选：用本地模型做设定检索（向量）
+## Optional: local embeddings for setting retrieval
 
-设定很多时，Author 可以用向量模型挑出和当前内容最相关的设定。这一步也可以用本地模型：
+With many settings, Author can use an embedding model to pick the settings most relevant to what you are writing. This can run locally too:
 
-1. 下载向量模型，例如 Ollama 执行 `ollama pull nomic-embed-text`（Docker 里执行 `docker compose exec ollama ollama pull nomic-embed-text`）。
-2. 在 **API 配置** 里打开 **独立配置 Embedding (向量) API**，服务商选 **自定义兼容端点**。
-3. **Embedding API 地址** 填和对话模型一样的地址（例如 `http://ollama:11434/v1`），**Embedding 模型名称** 填 `nomic-embed-text`。
-4. 取消勾选 **留空时复用对话 API Key**，Key 留空即可。
+1. Download an embedding model, e.g. `ollama pull nomic-embed-text` (in Docker: `docker compose exec ollama ollama pull nomic-embed-text`).
+2. In **API Config**, turn on **Separate Embedding (Vector) API** and choose **Custom compatible endpoint** as the provider.
+3. Set **Embedding API Address** to the same address as the chat model (e.g. `http://ollama:11434/v1`) and **Embedding Model Name** to `nomic-embed-text`.
+4. Uncheck **Reuse chat API Key when blank** and leave the key empty.
 
-## 按提示排查
+## Troubleshooting by message
 
-| 看到的提示 | 原因 | 怎么办 |
+| Message | Cause | Fix |
 |---|---|---|
-| 服务端默认禁止访问本机或内网地址 | [第一步](#第一步允许-author-连接内网docker--源码部署)的设置没生效 | 检查变量名拼写，值是否为 `1`；改完是否重建了容器（`docker compose up -d`，不是 `restart`）；Author 是否已更新到最新版本 |
-| 网络连接失败，请检查 API 地址是否正确 | Author 连不上模型 | 按顺序检查：地址是不是填了容器里不能用的 `localhost`；IP 和端口对不对；模型软件是否已启动、是否允许别的设备连接（[第二步](#第二步让模型软件允许别的设备连接)）；防火墙是否放行；用第二步末尾的方法，确认从别的设备能打开模型地址 |
-| 请先配置 API Key | API Key 留空了 | 随便填一个，例如 `local` |
-| 请先填写 OpenAI 兼容端点地址 | API 地址留空了 | 按[第三步](#api-地址怎么填)填写 |
-| AI 服务返回错误 (404) | 地址结尾少了 `/v1`，或者多加了路径 | 地址改成 `http://IP:端口/v1` 这种形式 |
-| AI 服务错误：……model …… not found | 模型名不对，或者模型还没下载 / 没加载 | 点"从API拉取模型列表"重新选择；Ollama 先 `ollama pull`，LM Studio 先加载模型 |
-| 未能获取到模型列表 | 地址不对，或者模型软件还没有可用的模型 | 先按"网络连接失败"那一行检查；确认模型软件里至少有一个已下载的模型 |
-| 上下文过长 / 输入内容过长 | 发送的内容超过了模型的上限 | 见[上下文长度](#上下文长度最容易踩的坑) |
-| 生成超时，内容尚未完成 | 模型连续 2 分钟没有任何输出，常见于开始输出之前 | 见[生成时间](#生成时间) |
-| 生成中断，内容未完成 | 模型软件中途断开，常见原因是内存不足，或者模型被自动卸载 | 看模型软件的日志；换小模型或调小上下文长度 |
-| 能生成，但 AI 不看设定、忘了前文 | 内容被模型悄悄截断了 | 见[上下文长度](#上下文长度最容易踩的坑) |
+| The server blocks loopback/LAN addresses by default | [Step 1](#step-1-allow-lan-access-docker--source-deployments) has not taken effect | Check the variable name and that the value is `1`; make sure you recreated the container (`docker compose up -d`, not `restart`); make sure Author is up to date |
+| Network connection failed. Please check that the API address is correct. | Author cannot reach the model | Check in order: the address is not a `localhost` that doesn't work inside a container; IP and port are correct; the model server is running and accepts other devices ([Step 2](#step-2-let-the-model-server-accept-other-devices)); the firewall allows it; the model address opens from another device (see the end of Step 2) |
+| Please configure your API Key first. | API Key is empty | Enter any placeholder such as `local` |
+| Please enter the OpenAI-compatible endpoint address | API address is empty | Fill it in as in [Step 3](#filling-in-the-api-address) |
+| AI service returned an error (404) | The address is missing `/v1`, or has an extra path | Use the form `http://IP:PORT/v1` |
+| AI service error: … model … not found | Wrong model name, or the model is not downloaded / loaded | Pick it again with **Fetch model list from API**; for Ollama run `ollama pull` first, for LM Studio load the model first |
+| Could not fetch the model list | Wrong address, or no model is available yet | Check as for "Network connection failed"; make sure at least one model is downloaded |
+| Context too long / Input is too long | The request exceeds the model's limit | See [Context length](#context-length-the-most-common-pitfall) |
+| Generation timed out and is incomplete | The model produced nothing for 2 minutes, usually before the first word | See [Generation time](#generation-time) |
+| Generation was interrupted and is incomplete | The model server dropped the connection, often from running out of memory or unloading the model | Check the model server's logs; use a smaller model or a shorter context length |
+| Replies work, but the AI ignores settings or forgets earlier text | Input was silently cut off by the model | See [Context length](#context-length-the-most-common-pitfall) |

@@ -223,6 +223,7 @@ export function resolveAiEndpoint(apiConfig) {
     if (isDeepSeekPresetConfig(apiConfig)) return '/api/ai';
     const providerType = normalizeCompatibleProviderType(apiConfig?.providerType || apiConfig?.provider);
     if (providerType === 'gemini-native') return '/api/ai/gemini';
+    if (providerType === 'ollama') return '/api/ai/ollama';
     if (providerType === 'claude' || apiConfig?.apiFormat === 'anthropic') return '/api/ai/claude';
     return '/api/ai';
 }

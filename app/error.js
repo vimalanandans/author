@@ -5,8 +5,10 @@ import { AlertTriangle, Download, RefreshCw, Trash2 } from 'lucide-react';
 import { downloadDiagnosticReport, initDiagnostics, recordDiagnosticEvent } from './lib/diagnostics';
 import { recoverFromChunkLoadError } from './lib/chunk-recovery';
 import { BASE_PATH } from './lib/api-base';
+import { useI18n } from './lib/useI18n';
 
 export default function Error({ error, reset }) {
+    const { text } = useI18n();
     useEffect(() => {
         if (recoverFromChunkLoadError(error)) return;
         initDiagnostics();
@@ -18,7 +20,7 @@ export default function Error({ error, reset }) {
                 digest: error?.digest,
             },
         }, 'error');
-        console.error('全局捕获的客户端渲染错误:', error);
+        console.error('Unhandled client rendering error:', error);
     }, [error]);
 
     const handleExportLog = () => {
@@ -34,7 +36,11 @@ export default function Error({ error, reset }) {
     };
 
     const handleClearData = () => {
-        if (window.confirm('警告：这将会清除浏览器本地所有的缓存数据（包括未导出的作品）、设定和状态！\n通常只有在持续白屏且刷新无法恢复时才使用此操作。\n\n确定要清空并重置吗？')) {
+        if (window.confirm(text(
+            '警告：这将会清除浏览器本地所有的缓存数据（包括未导出的作品）、设定和状态！\n通常只有在持续白屏且刷新无法恢复时才使用此操作。\n\n确定要清空并重置吗？',
+            'Warning: this clears all local browser data, including any work that has not been exported. Use it only when reloading cannot recover from a persistent blank screen.\n\nClear and reset the app?',
+            'Внимание: это очистит все локальные данные браузера, включая неэкспортированные работы. Используйте только если перезагрузка не исправляет постоянный белый экран.\n\nОчистить и сбросить приложение?'
+        ))) {
             localStorage.clear();
             sessionStorage.clear();
             window.location.href = `${BASE_PATH}/`;
@@ -62,10 +68,10 @@ export default function Error({ error, reset }) {
                     </div>
                 </div>
                 
-                <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 16px', letterSpacing: '-0.02em' }}>啊哦，系统遇到了一个意外错误</h1>
+                <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 16px', letterSpacing: '-0.02em' }}>{text('啊哦，系统遇到了一个意外错误', 'Something unexpected went wrong', 'Произошла непредвиденная ошибка')}</h1>
                 <p style={{ fontSize: '15px', color: 'var(--text-secondary, #6b7280)', margin: '0 0 24px', lineHeight: 1.6 }}>
-                    应用程序在运行时发生了未捕获的异常导致崩溃。<br/>
-                    您可以将下方的错误信息截图反馈给开发者（或截图给我）。
+                    {text('应用程序在运行时发生了未捕获的异常导致崩溃。', 'The app encountered an unhandled error while running.', 'Во время работы приложения возникла необработанная ошибка.')}<br/>
+                    {text('您可以将下方的错误信息截图反馈给开发者（或截图给我）。', 'You can send the error details below to the developer.', 'Вы можете отправить разработчику сведения об ошибке ниже.')}
                 </p>
 
                 <div style={{
@@ -92,7 +98,7 @@ export default function Error({ error, reset }) {
                         onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
                         onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                     >
-                        <RefreshCw size={16} /> 刷新页面
+                        <RefreshCw size={16} /> {text('刷新页面', 'Reload Page', 'Перезагрузить страницу')}
                     </button>
 
                     <button
@@ -112,7 +118,7 @@ export default function Error({ error, reset }) {
                             e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.35)';
                         }}
                     >
-                        <Download size={16} /> 导出诊断日志
+                        <Download size={16} /> {text('导出诊断日志', 'Export Diagnostic Log', 'Экспортировать журнал диагностики')}
                     </button>
 
                     <button
@@ -132,12 +138,12 @@ export default function Error({ error, reset }) {
                             e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.4)';
                         }}
                     >
-                        <Trash2 size={16} /> 清空重置 (危险操作)
+                        <Trash2 size={16} /> {text('清空重置 (危险操作)', 'Clear and Reset (dangerous)', 'Очистить и сбросить (опасно)')}
                     </button>
                 </div>
                 
                 <p style={{ fontSize: '12px', color: 'var(--text-muted, #9ca3af)', marginTop: '32px', marginBottom: 0, lineHeight: 1.5 }}>
-                    提示：如果该问题频繁出现，可能是您的浏览器插件冲突（如开启了网页自动翻译插件导致 React 渲染崩溃），<br/>或本地数据结构受损。持续白屏时请尝试清除缓存以恢复初始状态。
+                    {text('提示：如果该问题频繁出现，可能是您的浏览器插件冲突（如开启了网页自动翻译插件导致 React 渲染崩溃），', 'Tip: repeated failures may be caused by a browser extension, such as automatic page translation, or damaged local data.', 'Совет: повторяющиеся ошибки могут быть вызваны расширением браузера, например автоматическим переводом страниц, или повреждёнными локальными данными.')}<br/>{text('或本地数据结构受损。持续白屏时请尝试清除缓存以恢复初始状态。', 'If the blank screen persists, clear local data to restore the initial state.', 'Если белый экран не исчезает, очистите локальные данные для восстановления исходного состояния.')}
                 </p>
             </div>
         </div>

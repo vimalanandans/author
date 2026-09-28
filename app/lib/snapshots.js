@@ -27,8 +27,8 @@ function newSnapshotId() {
 }
 
 function getCurrentLanguage() {
-    if (typeof window === 'undefined') return 'zh';
-    return useAppStore.getState().language || localStorage.getItem('author-lang') || 'zh';
+    if (typeof window === 'undefined') return 'en';
+    return useAppStore.getState().language || localStorage.getItem('author-lang') || 'en';
 }
 
 function text(zh, en, ru = en) {

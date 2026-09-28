@@ -5,8 +5,9 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '../store/useAppStore';
 import { useI18n } from '../lib/useI18n';
 import { createChapter, deleteChapter, updateChapter, saveChapters, getChapters, createVolume, insertChapterAfter, insertChapterInVolume, reorderItems } from '../lib/storage';
-import { exportProject, importProject, importWork, exportWorkAsTxt, exportWorkAsMarkdown, exportWorkAsDocx, exportWorkAsEpub, exportWorkAsPdf } from '../lib/project-io';
+import { exportProject, importProject, importWork, exportWorkAsTxt, exportWorkAsMarkdown, exportWorkAsDocx, exportWorkAsEpub, exportWorkAsPdf, openProjectFile, saveProjectFile } from '../lib/project-io';
 import { WRITING_MODES, getAllWorks, getProjectSettings, getSettingsNodes, addWork, saveSettingsNodes, setActiveWorkId as setActiveWorkIdSetting, getActiveWorkId, isBuiltInFolderLabel, getBuiltInWorkName } from '../lib/settings';
+import { getBuiltInChapterTitle } from '../lib/built-in-labels';
 import { detectConflicts, mergeChapters } from '../lib/chapter-number';
 import { estimateTokens } from '../lib/context-engine';
 import { Settings, Moon, Sun, History, Save, FolderOpen, FileDown, BookOpen, HelpCircle, Github, PanelLeftClose, ListOrdered, Library, Plus, FileText, FileType, BookMarked, FileOutput, Printer, Book, X, MoreHorizontal, ChevronUp, KeyRound, SlidersHorizontal, Eye, Smartphone, Clapperboard, Cloud, CloudOff, RefreshCw, CloudUpload, CloudDownload, Sparkles, Brain, Search, CheckCircle2, GitMerge, Layers3 } from 'lucide-react';
@@ -27,7 +28,7 @@ import { buildChapterSynopsisPrompts, buildMergedSynopsisPrompts, buildMultiChap
 import { prepareChapterForAi, prepareChaptersForAi } from '../lib/ai-reference-content';
 
 /** 更多操作下拉菜单（Portal 渲染到 body，彻底避免 overflow 裁剪） */
-function MoreMenuPortal({ anchorRef, t, setShowSettings, setShowMoreMenu, onOpenHelp, setShowGitPopup }) {
+function MoreMenuPortal({ anchorRef, t, text, setShowSettings, setShowMoreMenu, onOpenHelp, setShowGitPopup, onSaveAs }) {
     const menuRef = useRef(null);
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
@@ -62,6 +63,9 @@ function MoreMenuPortal({ anchorRef, t, setShowSettings, setShowMoreMenu, onOpen
                 </button>
                 <button className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setShowSettings('preferences'); setShowMoreMenu(false); }}>
                     <SlidersHorizontal size={14} style={{ flexShrink: 0 }} /> <span>{t('settings.tabPreferences') || '偏好设置'}</span>
+                </button>
+                <button className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { onSaveAs?.(); setShowMoreMenu(false); }}>
+                    <Save size={14} style={{ flexShrink: 0 }} /> <span>{text('项目另存为', 'Save Project As…', 'Сохранить проект как…')}</span>
                 </button>
                 <div style={{ height: 1, background: 'var(--border-light)', margin: '4px 0' }} />
                 <button className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { onOpenHelp?.(); setShowMoreMenu(false); }}>
@@ -347,6 +351,7 @@ function ChapterSynopsisModal({
     onSave,
     onClose,
 }) {
+    const { text } = useI18n();
     const structuredText = buildChapterSynopsisText(synopsisData);
     const structuredCount = (
         (synopsisData.beats?.length || 0) +
@@ -367,8 +372,8 @@ function ChapterSynopsisModal({
             <div className="modal chapter-memory-workspace chapter-synopsis-workspace" onClick={e => e.stopPropagation()}>
                 <MemoryWorkspaceHeader
                     activeMode="synopsis"
-                    title="章节概要"
-                    subtitle="把当前章节整理成稳定、可复用的前文摘要"
+                    title={text('章节概要', 'Chapter Synopsis', 'Синопсис главы')}
+                    subtitle={text('把当前章节整理成稳定、可复用的前文摘要', 'Turn this chapter into stable, reusable context for later chapters.', 'Превратите эту главу в стабильный контекст для следующих глав.')}
                     icon={<FileText size={22} />}
                     showTabs={false}
                     onClose={onClose}
@@ -381,21 +386,21 @@ function ChapterSynopsisModal({
                     <aside className="synopsis-meta-panel">
                         <div className="synopsis-chapter-badge">
                             <FileText size={17} />
-                            <span>当前章节</span>
+                            <span>{text('当前章节', 'Current Chapter', 'Текущая глава')}</span>
                         </div>
-                        <h3 title={chapter?.title || ''}>{chapter?.title || '未命名章节'}</h3>
+                        <h3 title={chapter?.title || ''}>{getBuiltInChapterTitle(chapter?.title, (_zh, en) => en) || 'Untitled Chapter'}</h3>
                         <div className="synopsis-meta-list">
                             <div>
-                                <span>正文估算</span>
+                                <span>{text('正文估算', 'Body Estimate', 'Оценка текста')}</span>
                                 <strong>{formatMemoryTokens(chapterTokens)}</strong>
                             </div>
                             <div>
-                                <span>概要估算</span>
+                                <span>{text('概要估算', 'Synopsis Estimate', 'Оценка синопсиса')}</span>
                                 <strong>{formatMemoryTokens(synopsisTokens)}</strong>
                             </div>
                             <div>
-                                <span>概要状态</span>
-                                <strong>{hasChapterSynopsis(synopsisData) || synopsisDraft.trim() ? '已填写' : '未填写'}</strong>
+                                <span>{text('概要状态', 'Synopsis Status', 'Статус синопсиса')}</span>
+                                <strong>{hasChapterSynopsis(synopsisData) || synopsisDraft.trim() ? text('已填写', 'Complete', 'Готово') : text('未填写', 'Empty', 'Пусто')}</strong>
                             </div>
                             {hasAdvancedDetails && (
                                 <div>
@@ -420,8 +425,8 @@ function ChapterSynopsisModal({
                     <section className="memory-editor-panel">
                         <div className="memory-panel-head">
                             <div>
-                                <div className="memory-panel-title">概要正文</div>
-                                <div className="memory-panel-subtitle">记录本章进展、冲突、信息增量和收束位置</div>
+                                <div className="memory-panel-title">{text('概要正文', 'Synopsis', 'Синопсис')}</div>
+                                <div className="memory-panel-subtitle">{text('记录本章进展、冲突、信息增量和收束位置', 'Record progress, conflicts, new information, and the ending state.', 'Зафиксируйте развитие, конфликты, новую информацию и финальное состояние.')}</div>
                             </div>
                             <span className="memory-token-pill">{formatMemoryTokens(synopsisTokens)}</span>
                         </div>
@@ -429,15 +434,15 @@ function ChapterSynopsisModal({
                             className="memory-main-textarea synopsis-main-textarea"
                             value={synopsisDraft}
                             onChange={e => onDraftChange(e.target.value)}
-                            placeholder="写下这一章发生了什么、冲突如何推进、信息有什么变化，以及最后停在什么状态。"
+                                placeholder={text('写下这一章发生了什么、冲突如何推进、信息有什么变化，以及最后停在什么状态。', 'Describe what happens, how conflicts progress, what changes, and where the chapter ends.', 'Опишите события, развитие конфликтов, изменения и финал главы.')}
                         />
 
                         <label className="synopsis-ending-field">
-                            <span>结尾状态</span>
+                            <span>{text('结尾状态', 'Ending State', 'Финальное состояние')}</span>
                             <input
                                 value={synopsisData.endingState || ''}
                                 onChange={e => onSynopsisPatch({ endingState: e.target.value })}
-                                placeholder="例如：本章停在主角做出决定、冲突升级或新线索暴露的位置。"
+                                placeholder={text('例如：本章停在主角做出决定、冲突升级或新线索暴露的位置。', 'For example: the protagonist makes a decision, a conflict escalates, or a clue is revealed.', 'Например: герой принимает решение, конфликт обостряется или раскрывается улика.')}
                             />
                         </label>
 
@@ -464,7 +469,7 @@ function ChapterSynopsisModal({
                         <span>{synopsisDraft.trim() ? '概要会作为前文摘要参与续写上下文' : '生成或填写后可用于后续章节承接'}</span>
                     </div>
                     <div className="memory-footer-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={onClear} disabled={synopsisGenerating || synopsisSaving}>清空</button>
+                        <button className="btn btn-ghost btn-sm" onClick={onClear} disabled={synopsisGenerating || synopsisSaving}>{text('清空', 'Clear', 'Очистить')}</button>
                         <button className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={synopsisGenerating || synopsisSaving || synopsisLocked}>
                         {synopsisGenerating ? <RefreshCw size={14} className="spin" /> : <Sparkles size={14} />}
                         {synopsisGenerating ? '生成中...' : 'AI 生成概要'}
@@ -502,6 +507,7 @@ function ChapterMemoryGroupsModal({
     onSwitchToSynopsis,
     onClose,
 }) {
+    const { text } = useI18n();
     const [chapterQuery, setChapterQuery] = useState('');
     const realChapters = chapters
         .map((chapter, index) => ({ chapter, index }))
@@ -520,37 +526,37 @@ function ChapterMemoryGroupsModal({
             <div className="modal chapter-memory-workspace" onClick={e => e.stopPropagation()}>
                 <MemoryWorkspaceHeader
                     activeMode="memory"
-                    subtitle="用于续写承接与长期剧情压缩"
+                    subtitle={text('用于续写承接与长期剧情压缩', 'Use for continuity and long-term plot compression.', 'Используйте для преемственности и долгосрочного сжатия сюжета.')}
                     onSwitchToSynopsis={onSwitchToSynopsis}
                     onClose={onClose}
                     onSave={onSave}
                     saving={saving}
                     saveDisabled={generating}
-                    saveLabel="保存"
+                    saveLabel={text('保存', 'Save', 'Сохранить')}
                 />
 
                 <div className="chapter-memory-studio-grid">
                     <aside className="memory-left-rail">
                         <div className="memory-rail-title">
                             <Layers3 size={15} />
-                            <span>选择章节</span>
+                            <span>{text('选择章节', 'Select Chapters', 'Выберите главы')}</span>
                         </div>
                         <label className="memory-search-box">
                             <Search size={15} />
                             <input
                                 value={chapterQuery}
                                 onChange={e => setChapterQuery(e.target.value)}
-                                placeholder="搜索章节"
+                                placeholder={text('搜索章节', 'Search chapters', 'Поиск глав')}
                             />
                         </label>
                         <div className="memory-chapter-progress">
-                            <span>已选择 {selectedChapterCount} / {realChapters.length} 章</span>
+                            <span>{text(`已选择 ${selectedChapterCount} / ${realChapters.length} 章`, `${selectedChapterCount} / ${realChapters.length} chapters selected`, `Выбрано глав: ${selectedChapterCount} / ${realChapters.length}`)}</span>
                             {selectedChapterCount > 0 && <strong>{formatMemoryTokens(draftTokens)}</strong>}
                         </div>
 
                         <div className="memory-chapter-list">
                             {filteredChapters.length === 0 ? (
-                                <div className="memory-empty-state">没有匹配的章节。</div>
+                                <div className="memory-empty-state">{text('没有匹配的章节。', 'No matching chapters.', 'Нет подходящих глав.')}</div>
                             ) : filteredChapters.map(({ chapter, ordinal }) => {
                                 const selected = selectedChapterIds.has(chapter.id);
                                 return (
@@ -562,10 +568,10 @@ function ChapterMemoryGroupsModal({
                                         />
                                         <span className="memory-row-index">{String(ordinal).padStart(2, '0')}</span>
                                         <span className="memory-row-main">
-                                            <strong title={chapter.title}>{chapter.title || '未命名章节'}</strong>
-                                            <em>{hasChapterSynopsis(chapter) ? '可用概要压缩' : '使用正文首尾线索'}</em>
+                                            <strong title={chapter.title}>{getBuiltInChapterTitle(chapter.title, (_zh, en) => en) || 'Untitled Chapter'}</strong>
+                                            <em>{hasChapterSynopsis(chapter) ? text('可用概要压缩', 'Synopsis compression available', 'Доступно сжатие синопсиса') : text('使用正文首尾线索', 'Using opening and closing text', 'Используются начало и конец текста')}</em>
                                         </span>
-                                        {hasChapterSynopsis(chapter) && <span className="memory-status-chip">已有概要</span>}
+                                        {hasChapterSynopsis(chapter) && <span className="memory-status-chip">{text('已有概要', 'Synopsis Ready', 'Синопсис готов')}</span>}
                                     </label>
                                 );
                             })}
@@ -575,8 +581,8 @@ function ChapterMemoryGroupsModal({
                     <section className="memory-editor-panel memory-center-rail">
                         <div className="memory-panel-head">
                             <div>
-                                <div className="memory-panel-title">记忆正文</div>
-                                <div className="memory-panel-subtitle">高保真记录事件、人物变化、伏笔与未回收问题</div>
+                                <div className="memory-panel-title">{text('记忆正文', 'Memory Content', 'Содержание памяти')}</div>
+                                <div className="memory-panel-subtitle">{text('高保真记录事件、人物变化、伏笔与未回收问题', 'Capture events, character changes, foreshadowing, and unresolved threads.', 'Зафиксируйте события, изменения персонажей, предзнаменования и незакрытые линии.')}</div>
                             </div>
                             <span className="memory-token-pill">{formatMemoryTokens(draftTokens)}</span>
                         </div>
@@ -584,13 +590,13 @@ function ChapterMemoryGroupsModal({
                             className="memory-group-name-input"
                             value={draft.name}
                             onChange={e => onDraftChange({ name: e.target.value })}
-                            placeholder="记忆组名，例如：学院篇前半 / 反派伏笔线"
+                            placeholder={text('记忆组名，例如：学院篇前半 / 反派伏笔线', 'Memory group name, e.g. Academy opening / Villain foreshadowing', 'Название группы памяти, например: начало академии / предзнаменование злодея')}
                         />
                         <textarea
                             className="memory-main-textarea memory-group-textarea"
                             value={draft.summary}
                             onChange={e => onDraftChange({ summary: e.target.value, source: draft.source === 'ai' ? 'ai' : 'manual' })}
-                            placeholder="可手写，也可选择章节后点击 AI 生成。"
+                            placeholder={text('可手写，也可选择章节后点击 AI 生成。', 'Write it manually, or select chapters and generate it with AI.', 'Введите вручную или выберите главы и создайте с помощью ИИ.')}
                         />
 
                         <StructuredMemorySections data={draft} />
@@ -601,13 +607,13 @@ function ChapterMemoryGroupsModal({
                     <aside className="memory-right-rail">
                         <div className="memory-rail-title">
                             <BookMarked size={15} />
-                            <span>已保存的记忆组</span>
+                            <span>{text('已保存的记忆组', 'Saved Memory Groups', 'Сохранённые группы памяти')}</span>
                             <em>{groups.length}</em>
                         </div>
 
                         <div className="memory-saved-list">
                             {groups.length === 0 ? (
-                                <div className="memory-empty-state">还没有自定义多章节概要组。</div>
+                                <div className="memory-empty-state">{text('还没有自定义多章节概要组。', 'No custom multi-chapter memory groups yet.', 'Пока нет пользовательских групп памяти нескольких глав.')}</div>
                             ) : groups.map(group => {
                                 const selected = selectedGroupIds.has(group.id);
                                 return (
@@ -620,14 +626,14 @@ function ChapterMemoryGroupsModal({
                                             />
                                             <span className="memory-group-folder"><BookMarked size={15} /></span>
                                             <span className="memory-group-row-main">
-                                                <strong>{group.name || '未命名记忆组'}</strong>
-                                                <em>{group.chapterIds.length} 章 · {formatMemoryTokens(estimateTokens(buildChapterMemoryGroupText(group, chapters)))}</em>
+                                                <strong>{group.name || text('未命名记忆组', 'Untitled Memory Group', 'Группа памяти без названия')}</strong>
+                                                <em>{text(`${group.chapterIds.length} 章`, `${group.chapterIds.length} chapters`, `${group.chapterIds.length} глав`)} · {formatMemoryTokens(estimateTokens(buildChapterMemoryGroupText(group, chapters)))}</em>
                                             </span>
                                         </label>
-                                        <p>{group.summary || '暂无概要正文'}</p>
+                                        <p>{group.summary || text('暂无概要正文', 'No synopsis content yet', 'Содержания синопсиса пока нет')}</p>
                                         <div className="memory-group-row-actions">
-                                            <button className="btn btn-ghost btn-sm" onClick={() => onEdit(group)} disabled={generating || saving}>编辑</button>
-                                            <button className="btn btn-ghost btn-sm danger" onClick={() => onDelete(group.id)} disabled={generating || saving}>删除</button>
+                                            <button className="btn btn-ghost btn-sm" onClick={() => onEdit(group)} disabled={generating || saving}>{text('编辑', 'Edit', 'Изменить')}</button>
+                                            <button className="btn btn-ghost btn-sm danger" onClick={() => onDelete(group.id)} disabled={generating || saving}>{text('删除', 'Delete', 'Удалить')}</button>
                                         </div>
                                     </div>
                                 );
@@ -636,7 +642,7 @@ function ChapterMemoryGroupsModal({
 
                         <button className="memory-merge-button" onClick={onMerge} disabled={generating || saving || selectedGroupCount < 2}>
                             {generating ? <RefreshCw size={15} className="spin" /> : <GitMerge size={15} />}
-                            合并所选 {selectedGroupCount > 0 ? `(${selectedGroupCount})` : ''}
+                            {text('合并所选', 'Merge Selected', 'Объединить выбранное')} {selectedGroupCount > 0 ? `(${selectedGroupCount})` : ''}
                         </button>
                     </aside>
                 </div>
@@ -644,17 +650,17 @@ function ChapterMemoryGroupsModal({
                 <div className="memory-workspace-footer">
                     <div className="memory-footer-status">
                         <CheckCircle2 size={15} />
-                        <span>{selectedChapterCount > 0 ? `已覆盖 ${selectedChapterCount} 章 · 可作为前文概要注入 AI` : '选择章节后生成或保存多章记忆'}</span>
+                        <span>{selectedChapterCount > 0 ? text(`已覆盖 ${selectedChapterCount} 章 · 可作为前文概要注入 AI`, `${selectedChapterCount} chapters covered · ready to use as previous context`, `Охвачено глав: ${selectedChapterCount} · готово для предыдущего контекста`) : text('选择章节后生成或保存多章记忆', 'Select chapters to generate or save multi-chapter memory.', 'Выберите главы, чтобы создать или сохранить память нескольких глав.')}</span>
                     </div>
                     <div className="memory-footer-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={onNew} disabled={generating || saving}>新建草稿</button>
+                        <button className="btn btn-ghost btn-sm" onClick={onNew} disabled={generating || saving}>{text('新建草稿', 'New Draft', 'Новый черновик')}</button>
                         <button className="btn btn-secondary btn-sm" onClick={onGenerate} disabled={generating || saving || selectedChapterIds.size === 0}>
                             {generating ? <RefreshCw size={14} className="spin" /> : <Sparkles size={14} />}
-                            {generating ? '生成中...' : 'AI 生成'}
+                            {generating ? text('生成中...', 'Generating...', 'Создание...') : text('AI 生成', 'Generate with AI', 'Создать с ИИ')}
                         </button>
                         <button className="btn btn-primary btn-sm" onClick={onSave} disabled={generating || saving}>
                             {saving ? <RefreshCw size={14} className="spin" /> : <Save size={14} />}
-                            保存组
+                            {text('保存组', 'Save Group', 'Сохранить группу')}
                         </button>
                     </div>
                 </div>
@@ -664,7 +670,7 @@ function ChapterMemoryGroupsModal({
     );
 }
 
-function formatSynopsisTime(value, text = (zh) => zh, language = 'zh') {
+function formatSynopsisTime(value, text = (zh, en) => en || zh, language = 'en') {
     if (!value) return text('未保存', 'Unsaved', 'Не сохранено');
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return text('未保存', 'Unsaved', 'Не сохранено');
@@ -698,7 +704,7 @@ function ChapterSynopsisOverviewModal({
     showToast,
     onClose,
     text = (zh) => zh,
-    language = 'zh',
+    language = 'en',
 }) {
     const [query, setQuery] = useState('');
     const [filter, setFilter] = useState('all');
@@ -1781,10 +1787,10 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
     const tryNextTitle = (title) => {
         // 1. "第N章" 阿拉伯数字 — 只保留章节编号，去掉后续标题名
         const m1 = title.match(/第(\d+)章/);
-        if (m1) return `第${parseInt(m1[1], 10) + 1}章`;
+        if (m1) return t('sidebar.defaultChapterTitle').replace('{num}', parseInt(m1[1], 10) + 1);
         // 2. "第X章" 中文数字（如 第三十三章）— 只保留章节编号
         const m2 = title.match(/第([零一二三四五六七八九十百千万]+)章/);
-        if (m2) { const n = parseCnNum(m2[1]); if (!isNaN(n)) return `第${toCnNum(n + 1)}章`; }
+        if (m2) { const n = parseCnNum(m2[1]); if (!isNaN(n)) return t('sidebar.defaultChapterTitle').replace('{num}', n + 1); }
         // 3. 纯阿拉伯数字（如 "33"）
         if (/^\d+$/.test(title.trim())) return String(parseInt(title.trim(), 10) + 1);
         // 4. 纯中文数字（如 "三十三"）
@@ -1801,11 +1807,11 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
         const fallback = baseTitle || t('sidebar.defaultChapterTitle').replace('{num}', chapters.length + 1);
         const existing = new Set(chapters.map(ch => ch.title).filter(Boolean));
         if (!existing.has(fallback)) return fallback;
-        const first = `${fallback}（新）`;
+        const first = `${fallback} (New)`;
         if (!existing.has(first)) return first;
         let index = 2;
-        while (existing.has(`${fallback}（新${index}）`)) index++;
-        return `${fallback}（新${index}）`;
+        while (existing.has(`${fallback} (New ${index})`)) index++;
+        return `${fallback} (New ${index})`;
     }, [chapters, t]);
 
     const getNextChapterTitle = useCallback((volumeId) => {
@@ -2356,12 +2362,12 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
     // ===== 分卷管理 =====
     const getNextVolumeTitle = useCallback(() => {
         const volumes = chapters.filter(c => c.type === 'volume');
-        if (volumes.length === 0) return (t('sidebar.defaultVolumeTitle') || '第{num}卷').replace('{num}', 1);
+        if (volumes.length === 0) return (t('sidebar.defaultVolumeTitle') || 'Volume {num}').replace('{num}', 1);
         for (let i = volumes.length - 1; i >= 0; i--) {
             const next = tryNextTitle(volumes[i].title);
             if (next) return next;
         }
-        return (t('sidebar.defaultVolumeTitle') || '第{num}卷').replace('{num}', volumes.length + 1);
+        return (t('sidebar.defaultVolumeTitle') || 'Volume {num}').replace('{num}', volumes.length + 1);
     }, [chapters, t]);
 
     const handleCreateVolume = useCallback(async () => {
@@ -2756,8 +2762,22 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                     <div className="sidebar-nav-bottom">
                         <IconButton icon={themeMeta.icon} label={themeMeta.label} text={sidebarOpen ? themeMeta.text : undefined} tooltipSide="right" onClick={toggleTheme} className="nav-item" />
                         <IconButton icon={<History size={18} />} label={t('sidebar.tooltipTimeMachine')} text={sidebarOpen ? (t('sidebar.navSnapshots') || '快照') : undefined} tooltipSide="right" onClick={() => setShowSnapshots(true)} className="nav-item" />
-                        <IconButton icon={<FolderOpen size={18} />} label={t('sidebar.menuLoad') || '读档'} text={sidebarOpen ? (t('sidebar.menuLoad') || '读档') : undefined} tooltipSide="right" onClick={() => document.getElementById('project-import-input')?.click()} className="nav-item" />
-                        <IconButton icon={<Save size={18} />} label={t('sidebar.menuSave') || '存档'} text={sidebarOpen ? (t('sidebar.menuSave') || '存档') : undefined} tooltipSide="right" onClick={() => { exportProject(); showToast(t('sidebar.exportedProject') || '已导出', 'success'); }} className="nav-item" />
+                        <IconButton icon={<FolderOpen size={18} />} label={t('sidebar.menuLoad')} text={sidebarOpen ? t('sidebar.menuLoad') : undefined} tooltipSide="right" onClick={async () => {
+                            const result = await openProjectFile();
+                            if (result.needsFileInput) { document.getElementById('project-import-input')?.click(); return; }
+                            if (result.success) { alert(`${result.message}\n${t('sidebar.importSuccess')}`); window.location.reload(); }
+                            else if (!result.canceled) showToast(result.message || text('无法打开项目文件', 'Unable to open the project file', 'Не удалось открыть файл проекта'), 'error');
+                        }} className="nav-item" />
+                        <IconButton icon={<Save size={18} />} label={text('保存项目（右键另存为）', 'Save Project (right-click for Save As)', 'Сохранить проект (правой кнопкой — Сохранить как)')} text={sidebarOpen ? t('sidebar.menuSave') : undefined} tooltipSide="right" onClick={async () => {
+                            const result = await saveProjectFile();
+                            if (result.success) showToast(result.downloaded ? text('项目已下载；此浏览器不支持自动保存到该文件', 'Project downloaded; this browser cannot auto-save to that file', 'Проект скачан; этот браузер не поддерживает автосохранение в этот файл') : text('项目已保存', 'Project saved', 'Проект сохранён'), 'success');
+                            else if (!result.canceled) showToast(result.error || text('无法保存项目文件', 'Unable to save the project file', 'Не удалось сохранить файл проекта'), 'error');
+                        }} onContextMenu={async (event) => {
+                            event.preventDefault();
+                            const result = await saveProjectFile({ saveAs: true });
+                            if (result.success) showToast(text('项目已另存为', 'Project saved as a new file', 'Проект сохранён как новый файл'), 'success');
+                            else if (!result.canceled) showToast(result.error || text('无法另存项目文件', 'Unable to save the project as a new file', 'Не удалось сохранить проект как новый файл'), 'error');
+                        }} className="nav-item" />
                         <IconButton icon={<FileDown size={18} />} label={t('sidebar.menuImportWork') || '导入'} text={sidebarOpen ? (t('sidebar.navImport') || '导入') : undefined} tooltipSide="right" onClick={() => document.getElementById('work-import-input')?.click()} className="nav-item" />
                         <div ref={navExportRef} style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
                             <IconButton icon={<FileOutput size={18} />} label={showNavExportMenu ? '' : text('导出', 'Export', 'Экспорт')} text={sidebarOpen ? text('导出', 'Export', 'Экспорт') : undefined} tooltipSide="right" onClick={() => setShowNavExportMenu(!showNavExportMenu)} className="nav-item" />
@@ -2833,7 +2853,11 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                         <div ref={moreMenuAnchorRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                             <IconButton id="tour-settings" icon={<Settings size={18} />} label={showMoreMenu ? '' : (t('sidebar.moreActions') || '更多操作')} text={sidebarOpen ? (t('sidebar.navMore') || '更多') : undefined} tooltipSide="right" onClick={() => setShowMoreMenu(!showMoreMenu)} className="nav-item" />
                             {showMoreMenu && (
-                                <MoreMenuPortal anchorRef={moreMenuAnchorRef} t={t} setShowSettings={setShowSettings} setShowMoreMenu={setShowMoreMenu} onOpenHelp={onOpenHelp} setShowGitPopup={setShowGitPopup} />
+                                <MoreMenuPortal anchorRef={moreMenuAnchorRef} t={t} text={text} setShowSettings={setShowSettings} setShowMoreMenu={setShowMoreMenu} onOpenHelp={onOpenHelp} setShowGitPopup={setShowGitPopup} onSaveAs={async () => {
+                                    const result = await saveProjectFile({ saveAs: true });
+                                    if (result.success) showToast(text('项目已另存为', 'Project saved as a new file', 'Проект сохранён как новый файл'), 'success');
+                                    else if (!result.canceled) showToast(result.error || text('无法另存项目文件', 'Unable to save the project as a new file', 'Не удалось сохранить проект как новый файл'), 'error');
+                                }} />
                             )}
                         </div>
                     </div>
@@ -2920,7 +2944,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                                                 <span className="gdocs-tab-arrow" style={{ transform: ch.collapsed ? 'none' : 'rotate(90deg)' }}>▶</span>
                                                 <Book size={14} style={{ marginRight: 4, flexShrink: 0, color: 'var(--accent)' }} />
                                                 <span style={{ flex: 1, minWidth: 0 }}>
-                                                    <span className="gdocs-tab-title" style={{ fontWeight: 600 }}>{ch.title}</span>
+                                                <span className="gdocs-tab-title" style={{ fontWeight: 600 }}>{getBuiltInChapterTitle(ch.title, text)}</span>
                                                     {volWords > 0 && (
                                                         <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)', marginTop: '1px' }}>
                                                             {volWords.toLocaleString()}字
@@ -2929,7 +2953,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                                                 </span>
                                                 <div className="gdocs-tab-actions">
                                                     <button className="gdocs-tab-action-btn" title={t('sidebar.newChapterInVolume') || '新建章节'} onClick={(e) => { e.stopPropagation(); handleCreateChapter(ch.id); }}>+</button>
-                                                    <button className="gdocs-tab-action-btn" title={t('sidebar.contextRename')} onClick={(e) => { e.stopPropagation(); setRenameId(ch.id); setRenameTitle(ch.title); }}>
+                                                    <button className="gdocs-tab-action-btn" title={t('sidebar.contextRename')} onClick={(e) => { e.stopPropagation(); setRenameId(ch.id); setRenameTitle(getBuiltInChapterTitle(ch.title, text)); }}>
                                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
                                                     </button>
                                                     <button className="gdocs-tab-action-btn danger" title={t('sidebar.deleteVolume') || '删除分卷'} onClick={(e) => { e.stopPropagation(); handleDeleteChapter(ch.id); }}>
@@ -2987,7 +3011,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                                             <span className="gdocs-tab-arrow" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
                                             <span style={{ flex: 1, minWidth: 0 }}>
                                                 <span className="gdocs-tab-title">
-                                                    {ch.title}
+                                                    {getBuiltInChapterTitle(ch.title, text)}
                                                     {ch.numberingIgnored && (
                                                         <span className="gdocs-special-badge" title={text('特殊章节：重排编号时忽略', 'Special chapter: ignored when renumbering', 'Специальная глава: игнорируется при перенумерации')}>{text('特殊', 'Special', 'Особая')}</span>
                                                     )}
@@ -3032,7 +3056,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setRenameId(ch.id);
-                                                        setRenameTitle(ch.title);
+                                                        setRenameTitle(getBuiltInChapterTitle(ch.title, text));
                                                     }}
                                                 ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg></button>
                                                 <button
@@ -3129,7 +3153,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
             {contextMenu && (
                 <div className="modal-overlay" style={{ background: 'transparent' }} onClick={() => setContextMenu(null)}>
                     <div className="dropdown-menu" style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}>
-                        <button className="dropdown-item" onClick={() => { setRenameId(contextMenu.id); const ch = chapters.find(c => c.id === contextMenu.id); setRenameTitle(ch?.title || ''); setContextMenu(null); }}>{t('sidebar.contextRename')}</button>
+                        <button className="dropdown-item" onClick={() => { setRenameId(contextMenu.id); const ch = chapters.find(c => c.id === contextMenu.id); setRenameTitle(getBuiltInChapterTitle(ch?.title, text) || ''); setContextMenu(null); }}>{t('sidebar.contextRename')}</button>
                         <button className="dropdown-item" onClick={() => { const ch = chapters.find(c => c.id === contextMenu.id); if (ch) exportWorkAsMarkdown([ch], ch.title); setContextMenu(null); }}>{t('sidebar.contextExport')}</button>
                         {chapters.find(c => c.id === contextMenu.id)?.type !== 'volume' && (
                             <>

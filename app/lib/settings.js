@@ -969,35 +969,35 @@ function generateNodeId() {
 
 // 每个作品下自动创建的子分类模板
 const WORK_SUB_CATEGORIES = [
-    { suffix: 'characters', name: '人物设定', category: 'character', type: 'folder', subFolders: [
-        { name: '主要角色', icon: 'Star' },
-        { name: '次要角色', icon: 'User' },
-        { name: '阵营/势力', icon: 'Shield' },
+    { suffix: 'characters', name: 'Characters', category: 'character', type: 'folder', subFolders: [
+        { name: 'Main Characters', icon: 'Star' },
+        { name: 'Supporting Characters', icon: 'User' },
+        { name: 'Factions', icon: 'Shield' },
     ]},
-    { suffix: 'locations', name: '空间/地点', category: 'location', type: 'folder', subFolders: [
-        { name: '主要场景', icon: 'Building' },
-        { name: '自然环境', icon: 'Mountain' },
+    { suffix: 'locations', name: 'Places', category: 'location', type: 'folder', subFolders: [
+        { name: 'Key Locations', icon: 'Building' },
+        { name: 'Natural Environment', icon: 'Mountain' },
     ]},
-    { suffix: 'world', name: '世界观/设定', category: 'world', type: 'folder', subFolders: [
-        { name: '历史/纪元', icon: 'BookOpen' },
-        { name: '社会/政治', icon: 'Crown' },
-        { name: '文化/习俗', icon: 'Compass' },
-        { name: '力量体系', icon: 'Zap' },
+    { suffix: 'world', name: 'Worldbuilding', category: 'world', type: 'folder', subFolders: [
+        { name: 'History / Eras', icon: 'BookOpen' },
+        { name: 'Society / Politics', icon: 'Crown' },
+        { name: 'Culture / Customs', icon: 'Compass' },
+        { name: 'Power System', icon: 'Zap' },
     ]},
-    { suffix: 'objects', name: '物品/道具', category: 'object', type: 'folder', subFolders: [
-        { name: '武器/装备', icon: 'Sword' },
-        { name: '特殊道具', icon: 'Gem' },
+    { suffix: 'objects', name: 'Items / Props', category: 'object', type: 'folder', subFolders: [
+        { name: 'Weapons / Equipment', icon: 'Sword' },
+        { name: 'Special Items', icon: 'Gem' },
     ]},
-    { suffix: 'plot', name: '大纲', category: 'plot', type: 'folder', subFolders: [
-        { name: '主线', icon: 'Flame' },
-        { name: '支线', icon: 'Feather' },
-        { name: '伏笔', icon: 'Lightbulb' },
+    { suffix: 'plot', name: 'Outline', category: 'plot', type: 'folder', subFolders: [
+        { name: 'Main Plot', icon: 'Flame' },
+        { name: 'Subplots', icon: 'Feather' },
+        { name: 'Foreshadowing', icon: 'Lightbulb' },
     ]},
-    { suffix: 'rules', name: '写作规则', category: 'rules', type: 'folder', subFolders: [
-        { name: '文风规范', icon: 'Palette' },
-        { name: '禁忌/注意', icon: 'Flag' },
+    { suffix: 'rules', name: 'Writing Rules', category: 'rules', type: 'folder', subFolders: [
+        { name: 'Style Guide', icon: 'Palette' },
+        { name: 'Taboos / Notes', icon: 'Flag' },
     ]},
-    { suffix: 'custom', name: '自定义设定', category: 'custom', type: 'folder', subFolders: [] },
+    { suffix: 'custom', name: 'Custom Settings', category: 'custom', type: 'folder', subFolders: [] },
 ];
 
 // 内置名称只在显示层翻译，不重写用户存储的节点名称。
@@ -1025,7 +1025,7 @@ export function createWorkNode(name, workId) {
     const now = new Date().toISOString();
     const workNode = {
         id,
-        name: name || '新作品',
+        name: name || 'New Work',
         type: 'work',
         category: 'work',
         parentId: null,
@@ -1172,7 +1172,7 @@ function getDefaultWorkNodes(workId) {
     });
     // Ensure bookInfo special node is always created
     nodes.push({
-        id: `${wid}-bookInfo`, name: '作品信息', type: 'special', category: 'bookInfo',
+        id: `${wid}-bookInfo`, name: 'Book Info', type: 'special', category: 'bookInfo',
         parentId: wid, order: -1, icon: 'BookOpen', content: { title: '', genre: '', synopsis: '', style: '', tone: '', targetAudience: '', pov: '' },
         collapsed: false, createdAt: now, updatedAt: now,
     });
@@ -1213,7 +1213,7 @@ async function migrateGlobalToPerWork() {
 
     if (!oldNodes || oldNodes.length === 0) {
         // 全新用户 → 创建默认作品
-        const { workNode, subNodes } = createWorkNode('默认作品', 'work-default');
+        const { workNode, subNodes } = createWorkNode('Default Work', 'work-default');
         await saveWorksIndex([workNode]);
         await persistSet(getNodesKey('work-default'), subNodes);
         if (!getActiveWorkId()) setActiveWorkId('work-default');
@@ -1353,7 +1353,7 @@ export async function getSettingsNodes(workId) {
         if (!biNode) {
             nodes.push({
                 id: Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
-                name: '作品信息', type: 'special', category: 'bookInfo',
+                name: 'Book Info', type: 'special', category: 'bookInfo',
                 parentId: wid, order: -1, icon: 'BookOpen',
                 content: { title: '', genre: '', synopsis: '', style: '', tone: '', targetAudience: '', pov: '' },
                 collapsed: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -1429,7 +1429,7 @@ async function migrateToWorkStructure(nodes) {
     const legacyRoots = nodes.filter(n => n.parentId === null && LEGACY_ROOT_IDS.includes(n.id));
     if (legacyRoots.length === 0) return nodes;
 
-    const { workNode } = createWorkNode('默认作品', 'work-default');
+    const { workNode } = createWorkNode('Default Work', 'work-default');
     const newNodes = [workNode];
     for (const node of nodes) {
         if (LEGACY_ROOT_IDS.includes(node.id) && node.parentId === null) {
@@ -1484,7 +1484,7 @@ async function migrateGlobalRulesToWork(nodes) {
 // 确保至少有一个作品存在（旧迁移链专用）
 async function ensureWorkExistsLegacy(nodes) {
     if (!nodes.some(n => n.type === 'work')) {
-        const { workNode, subNodes } = createWorkNode('默认作品', 'work-default');
+        const { workNode, subNodes } = createWorkNode('Default Work', 'work-default');
         nodes.push(workNode, ...subNodes);
     }
     if (!getActiveWorkId()) {
@@ -1501,7 +1501,7 @@ export async function addSettingsNode({ name, type, category, parentId, icon, co
     const siblings = nodes.filter(n => n.parentId === parentId);
     const node = {
         id: generateNodeId(),
-        name: name || (type === 'folder' ? '新分类' : '新条目'),
+        name: name || (type === 'folder' ? 'New Category' : 'New Entry'),
         type: type || 'item',
         category: category || 'custom',
         parentId: parentId || null,
@@ -1748,7 +1748,7 @@ async function migrateOldSettings() {
         if (!oldData) return null;
 
         const old = JSON.parse(oldData);
-        const { workNode, subNodes } = createWorkNode('默认作品', 'work-default');
+        const { workNode, subNodes } = createWorkNode('Default Work', 'work-default');
         const nodes = [workNode, ...subNodes];
         let hasContent = false;
 
